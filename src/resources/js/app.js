@@ -1,7 +1,8 @@
-import './bootstrap';
 import { createApp } from 'vue';
-import ExampleComponent from './components/ExampleComponent.vue';
+import App from './App.vue';
+import router from './router';
+import 'leaflet/dist/leaflet.css';
 
-const app = createApp({});
-app.component('example-component', ExampleComponent);
+const app = createApp(App);
+app.use(router);
 app.mount('#app');
