@@ -19,6 +19,7 @@ class DatabaseSeeder extends Seeder
             BenefitTypeSeeder::class,
             SpotSeeder::class,
             SpotBenefitSeeder::class,
+            ReviewSeeder::class,
         ]);
     }
 }
