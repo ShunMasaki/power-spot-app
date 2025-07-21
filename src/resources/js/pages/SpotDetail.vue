@@ -39,9 +39,12 @@
             <br />
             <label>
                 コメント:
-                <textarea v-model="newReview.comment" rows="3"></textarea>
+                <textarea v-model="newReview.comment" rows="3" placeholder="未入力でも投稿できます（任意）"></textarea>
             </label>
             <br />
+
+            <p v-if="errorMessage" style="color: red;">{{ errorMessage }}</p>
+
             <button @click="submitReview">投稿する</button>
         </div>
         <div v-else>
@@ -82,18 +85,41 @@ const fetchReviews = async () => {
     }
 }
 
+const errorMessage = ref('')
 // 仮のログイン状態（後で連携）
 const isLoggedIn = ref(true)
 
 const submitReview = async () => {
+    errorMessage.value = ''
+
+    if (!newReview.value.comment.trim()) {
+        newReview.value.comment = 'コメントなし'
+    }
+    if (newReview.value.comment.length > 300) {
+        errorMessage.value = 'コメントは300文字以内で入力してください。'
+        return
+    }
+
     try {
         await axios.post(`/api/spots/${route.params.id}/reviews`, newReview.value)
         alert('レビューを投稿しました')
-        newReview.value = { rating: '', comment: '' }
+        newReview.value = { rating: 5, comment: '' }
         await fetchReviews()
     } catch (error) {
-        console.log('レビュー投稿エラー:', error)
-        alert('投稿に失敗しました')
+        if (error.response?.status === 422) {
+            // Laravelからのバリデーションエラー
+            const errors = error.response.data.errors
+            if (errors.comment) {
+                errorMessage.value = errors.comment[0]
+            } else if (errors.rating) {
+                errorMessage.value = errors.rating[0]
+            } else {
+                errorMessage.value = '入力内容に誤りがあります。'
+            }
+        } else {
+            console.log('レビュー投稿エラー:', error)
+            alert('投稿に失敗しました')
+        }
     }
 }
 

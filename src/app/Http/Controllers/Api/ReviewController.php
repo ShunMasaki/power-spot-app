@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
+use App\Http\Requests\StoreReviewRequest;
 use App\Models\Spot;
 
 class ReviewController extends Controller
@@ -18,12 +18,10 @@ class ReviewController extends Controller
         return response()->json($reviews);
     }
 
-    public function store(Request $request, Spot $spot)
+    public function store(StoreReviewRequest $request, Spot $spot)
     {
-        $validated = $request->validate([
-            'rating' => 'required|integer|min:1|max:5',
-            'comment' => 'required|string|max:255',
-        ]);
+        $validated = $request->validated();
+
         $review = $spot->reviews()->create([
             // 'user_id' => auth()->id(),
             'user_id' => 1, // ダミーID
