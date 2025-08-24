@@ -22,3 +22,5 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+aws-exports.js
+resources/js/aws-exports.js
