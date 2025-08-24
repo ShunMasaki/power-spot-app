@@ -36,16 +36,14 @@ const router = useRouter()
 const spots = ref([])
 const searchKeyword = ref('')
 const map = ref(null)
+const markers = ref([])
 
-const initMap = () => {
-map.value = L.map('map').setView([35.681236, 139.767125], 12)
+const baseIconSize = 30
+const minSize = 24
+const maxSize = 80
 
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© OpenStreetMap contributors'
-}).addTo(map.value)
-
-loadSpots()
-}
+const getIconSize = (zoom) =>
+    Math.max(minSize, Math.min(maxSize, baseIconSize * Math.pow(1.15, zoom - 12)))
 
 // 絞り込み済みスポット一覧
 const filteredSpots = computed(() =>
@@ -59,21 +57,50 @@ const goToSpotDetail = id => {
   router.push(`/spots/${id}`)
 }
 
+// スポット取得
 const loadSpots = async () => {
     try {
         const res = await axios.get('/api/spots')
         spots.value = res.data
+        updateMarkers()
+    } catch (err) {
+        console.error('スポット取得エラー:', err)
+    }
+}
 
-        spots.value.forEach(spot => {
-        const marker = L.marker([spot.latitude, spot.longitude])
+// マーカー生成・リサイズ
+const updateMarkers = () => {
+    markers.value.forEach(marker => map.value.removeLayer(marker))
+    markers.value = []
+
+    const zoom = map.value.getZoom()
+    const size = getIconSize(zoom)
+
+    spots.value.forEach((spot, i) => {
+        const icon = L.icon({
+            iconUrl: '/spot.svg',
+            iconSize: [size, size],
+            iconAnchor: [size / 2, size]
+        })
+        const marker = L.marker([spot.latitude, spot.longitude], { icon })
+
         marker.addTo(map.value)
         marker.on('click', () => {
             router.push(`/spots/${spot.id}`)
         })
-        })
-    } catch (err) {
-        console.error('スポット取得エラー:', err)
-    }
+        markers.value.push(marker)
+    })
+}
+
+const initMap = () => {
+    map.value = L.map('map').setView([35.681236, 139.767125], 12)
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(map.value)
+
+    loadSpots()
+    map.value.on('zoomend', updateMarkers)
 }
 
 onMounted(() => {
