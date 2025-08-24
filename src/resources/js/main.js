@@ -4,8 +4,11 @@ import router from './router'
 import 'leaflet/dist/leaflet.css'
 import axios from 'axios'
 
-createApp(App)
-.use(router)
-.mount('#app')
+import { Amplify } from 'aws-amplify'
+import awsconfig from './aws-exports'
+
+Amplify.configure(awsconfig)
 
 axios.defaults.baseURL = 'http://localhost:8080'
+
+createApp(App).use(router).mount('#app')
