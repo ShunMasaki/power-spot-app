@@ -28,28 +28,44 @@
             </ul>
         </div>
 
-        <div v-if="isLoggedIn" class="review-form">
+        <div class="mt-4" v-if="!showReviewForm">
+            <button
+                @click="handleReviewClick"
+                class="bg-blue-500 text-white px-4 py-2 rounded"
+            >
+                レビューを投稿する
+            </button>
+        </div>
+
+        <!-- ログイン済みなら投稿フォーム表示 -->
+        <div v-if="auth.isLoggedIn && showReviewForm" class="review-form mt-4">
             <h3>レビューを投稿する</h3>
             <label>
                 評価（1〜5）:
                 <select v-model="newReview.rating">
-                    <option v-for="n in 5" :key="n" :value="n">{{ n }}</option>
+                <option v-for="n in 5" :key="n" :value="n">{{ n }}</option>
                 </select>
             </label>
             <br />
             <label>
                 コメント:
-                <textarea v-model="newReview.comment" rows="3" placeholder="未入力でも投稿できます（任意）"></textarea>
+                <textarea
+                v-model="newReview.comment"
+                rows="3"
+                placeholder="未入力でも投稿できます（任意）"
+                ></textarea>
             </label>
             <br />
-
             <p v-if="errorMessage" style="color: red;">{{ errorMessage }}</p>
-
             <button @click="submitReview">投稿する</button>
         </div>
-        <div v-else>
-            <p>レビュー投稿にはログインが必要です。</p>
-        </div>
+
+        <!-- ログインモーダル -->
+        <LoginModal
+            :isOpen="showLoginModal"
+            @close="showLoginModal = false"
+            @login-success="handleLoginSuccess"
+        />
     </div>
   </template>
 
@@ -58,6 +74,8 @@
 import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import axios from 'axios'
+import LoginModal from '@/components/LoginModal.vue'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const spot = ref({
@@ -67,14 +85,19 @@ description: '',
 spot_benefits: []
 })
 const reviews = ref([])
-const formatDate = (datetime) => {
-    const date = new Date(datetime)
-    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString()
-}
 const newReview = ref({
     rating: 5,
     comment: ''
 })
+const errorMessage = ref('')
+const auth = useAuthStore()
+const showLoginModal = ref(false)
+const showReviewForm = ref(false)
+
+const formatDate = (datetime) => {
+    const date = new Date(datetime)
+    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString()
+}
 
 const fetchReviews = async () => {
     try {
@@ -85,9 +108,18 @@ const fetchReviews = async () => {
     }
 }
 
-const errorMessage = ref('')
-// 仮のログイン状態（後で連携）
-const isLoggedIn = ref(true)
+const handleReviewClick = () => {
+    if (!auth.isLoggedIn) {
+        showLoginModal.value = true
+    } else {
+        showReviewForm.value = true
+    }
+}
+
+const handleLoginSuccess = () => {
+    showLoginModal.value = false
+    showReviewForm.value = true
+}
 
 const submitReview = async () => {
     errorMessage.value = ''

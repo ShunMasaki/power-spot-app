@@ -1,51 +1,40 @@
 <template>
-    <div class="login-form">
-        <h2>ログイン</h2>
-        <form @submit.prevent="handleLogin">
-            <div>
-                <label for="email">メールアドレス:</label>
-                <input id="email" v-model="email" type="email" required />
-            </div>
-            <div>
-                <label for="password">パスワード:</label>
-                <input id="password" v-model="password" type="password" required />
-            </div>
-            <div v-if="errorMessage" class="error">{{ errorMessage }}</div>
-            <button type="submit">ログイン</button>
-        </form>
-    </div>
+  <div class="login-form">
+    <h2>ログイン</h2>
+    <form @submit.prevent="handleLogin">
+      <div>
+        <label for="email">メールアドレス:</label>
+        <input id="email" v-model="email" type="email" required />
+      </div>
+      <div>
+        <label for="password">パスワード:</label>
+        <input id="password" v-model="password" type="password" required />
+      </div>
+
+      <!-- エラーメッセージ -->
+      <div v-if="auth.error" class="error">{{ auth.error }}</div>
+
+      <!-- ログインボタン -->
+      <button type="submit">
+        ログイン
+      </button>
+    </form>
+  </div>
 </template>
 
 <script setup>
 import { ref } from 'vue'
-import { signIn } from 'aws-amplify/auth'
+import { useAuthStore } from '../stores/auth'
 
+const emit = defineEmits(['login-success'])
 const email = ref('')
 const password = ref('')
-const nickname = ref('')
-const error = ref('')
-const loading = ref(false)
+const auth = useAuthStore()
 
 const handleLogin = async () => {
-    error.value = ''
-    loading.value = true
-
-    if (!email.value || !password.value || !nickname.value) {
-        error.value = 'すべての項目を入力してください'
-        loading.value = false
-        return
-    }
-
-    try {
-        const result = await signIn({ username: emmail.value, password: password.value })
-        console.log('ログイン成功:', result)
-        window.location.reload()
-        // TODO: ニックネームの保存は初回登録時に設定する想定。
-    } catch (error) {
-        console.error('ログインエラー:', error)
-        errorMessage.value = 'ログインに失敗しました。メールアドレスとパスワードを確認してください。'
-    } finally {
-        loading.value = false
+    await auth.login(email.value, password.value)
+    if (auth.isLoggedIn) {
+        emit('login-success')
     }
 }
 </script>
