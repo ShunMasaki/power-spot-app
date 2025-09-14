@@ -60,21 +60,14 @@
             <button @click="submitReview">投稿する</button>
         </div>
 
-        <!-- ログインモーダル -->
-        <LoginModal
-            :isOpen="showLoginModal"
-            @close="showLoginModal = false"
-            @login-success="handleLoginSuccess"
-        />
     </div>
   </template>
 
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, inject } from 'vue'
 import { useRoute } from 'vue-router'
 import axios from 'axios'
-import LoginModal from '@/components/LoginModal.vue'
 import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
@@ -91,8 +84,8 @@ const newReview = ref({
 })
 const errorMessage = ref('')
 const auth = useAuthStore()
-const showLoginModal = ref(false)
 const showReviewForm = ref(false)
+const setLoginSuccessCallback = inject('setLoginSuccessCallback')
 
 const formatDate = (datetime) => {
     const date = new Date(datetime)
@@ -110,15 +103,14 @@ const fetchReviews = async () => {
 
 const handleReviewClick = () => {
     if (!auth.isLoggedIn) {
-        showLoginModal.value = true
+        // ログイン成功後にレビューフォームを表示するコールバックを設定
+        setLoginSuccessCallback(() => {
+            showReviewForm.value = true
+        })
+        auth.openLoginModal()
     } else {
         showReviewForm.value = true
     }
-}
-
-const handleLoginSuccess = () => {
-    showLoginModal.value = false
-    showReviewForm.value = true
 }
 
 const submitReview = async () => {

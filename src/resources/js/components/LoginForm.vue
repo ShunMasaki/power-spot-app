@@ -19,6 +19,11 @@
         ログイン
       </button>
     </form>
+
+    <div class="mt-3 text-sm text-center">
+      アカウントをお持ちでない方は
+      <button type="button" class="underline" @click="switchToSignup">新規登録</button>
+    </div>
   </div>
 </template>
 
@@ -26,16 +31,22 @@
 import { ref } from 'vue'
 import { useAuthStore } from '../stores/auth'
 
-const emit = defineEmits(['login-success'])
+const emit = defineEmits(['login-success', 'switch-to-signup'])
 const email = ref('')
 const password = ref('')
 const auth = useAuthStore()
 
 const handleLogin = async () => {
+    // ログイン試行前にエラーメッセージをクリア
+    auth.error = null
     await auth.login(email.value, password.value)
     if (auth.isLoggedIn) {
         emit('login-success')
     }
+}
+
+const switchToSignup = () => {
+    emit('switch-to-signup')
 }
 </script>
 
