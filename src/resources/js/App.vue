@@ -2,13 +2,13 @@
     <div>
         <!-- ヘッダー（白） -->
         <header class="header-bar">
-            <router-link to="/" class="logo-link">
+            <a href="/" class="logo-link">
                 <img
                 src="./assets/logo/logo.png"
                 alt="パワスポ！ロゴ"
                 class="logo"
                 />
-            </router-link>
+            </a>
 
             <!-- 右側のボタン -->
             <div class="header-right">

@@ -1,7 +1,7 @@
 <template>
     <div class="home">
         <!-- 全画面マップ -->
-        <div id="map" class="fullscreen-map"></div>
+        <div id="map" class="fullscreen-map" ref="mapContainer"></div>
 
         <!-- 検索バー（マップ上にオーバーレイ） -->
         <div class="search-overlay">
@@ -13,54 +13,68 @@
             />
         </div>
 
+        <!-- 現在地ボタン -->
+        <div class="location-button-overlay">
+            <button @click="getCurrentLocation" class="location-btn" title="現在地に移動">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" fill="currentColor"/>
+                </svg>
+            </button>
+        </div>
+
         <!-- スポット一覧（マップ上にオーバーレイ） -->
-        <div class="spots-overlay" v-if="filteredSpots.length > 0">
+        <div class="spots-overlay" v-if="spots.length > 0">
             <div class="spots-header">
-                <h3>パワースポット一覧</h3>
+                <h3>パワースポット一覧 ({{ filteredSpots.length }}/{{ visibleSpots.length }})</h3>
                 <button @click="showSpotsList = !showSpotsList" class="toggle-btn">
                     {{ showSpotsList ? '閉じる' : '開く' }}
                 </button>
             </div>
-            <div v-if="showSpotsList" class="spots-list">
-                <div
-                    v-for="spot in filteredSpots"
-                    :key="spot.id"
-                    @click="goToSpotDetail(spot.id)"
-                    class="spot-item"
-                >
-                    {{ spot.name }}
+            <transition name="slide-up">
+                <div v-if="showSpotsList" class="spots-list">
+                    <div v-if="filteredSpots.length === 0" class="no-results">
+                        検索結果が見つかりませんでした
+                    </div>
+                    <div
+                        v-for="spot in filteredSpots"
+                        :key="spot.id"
+                        @click="goToSpotDetail(spot.id)"
+                        @mouseenter="highlightMarker(spot.id)"
+                        @mouseleave="unhighlightMarker(spot.id)"
+                        class="spot-item"
+                    >
+                        {{ spot.name }}
+                    </div>
                 </div>
-            </div>
+            </transition>
         </div>
     </div>
 </template>
 
 <script setup>
-import { onMounted, ref, computed, watch } from 'vue'
+import { onMounted, ref, computed, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
-import L from 'leaflet'
 import axios from 'axios'
 
 const router = useRouter()
 const spots = ref([])
 const searchKeyword = ref('')
 const map = ref(null)
+const mapContainer = ref(null)
 const markers = ref([])
 const showSpotsList = ref(false)
+let updateMarkersTimeout = null
 
-const baseIconSize = 30
-const minSize = 24
-const maxSize = 80
+// 地図の表示範囲内のスポット
+const visibleSpots = ref([])
 
-const getIconSize = (zoom) =>
-    Math.max(minSize, Math.min(maxSize, baseIconSize * Math.pow(1.15, zoom - 12)))
-
-// 絞り込み済みスポット一覧
-const filteredSpots = computed(() =>
-  spots.value.filter(spot =>
+// 絞り込み済みスポット一覧（地図表示範囲内 + 検索キーワード）
+const filteredSpots = computed(() => {
+  // 地図表示範囲内のスポットのみを使用
+  return visibleSpots.value.filter(spot =>
     spot.name.includes(searchKeyword.value)
   )
-)
+})
 
 // スポット詳細へ遷移
 const goToSpotDetail = id => {
@@ -72,57 +86,241 @@ const loadSpots = async () => {
     try {
         const res = await axios.get('/api/spots')
         spots.value = res.data
-        updateMarkers()
+        updateVisibleSpots()
     } catch (err) {
         console.error('スポット取得エラー:', err)
     }
 }
 
-// マーカー生成・リサイズ
-const updateMarkers = () => {
-    markers.value.forEach(marker => map.value.removeLayer(marker))
-    markers.value = []
+// 地図の表示範囲内のスポットを更新
+const updateVisibleSpots = () => {
+    if (!map.value) return
 
-    const zoom = map.value.getZoom()
-    const size = getIconSize(zoom)
+    const bounds = map.value.getBounds()
+    if (!bounds) return
 
-    // 検索結果に基づいてマーカーを表示
-    filteredSpots.value.forEach((spot, i) => {
-        const icon = L.icon({
-            iconUrl: '/spot.png',
-            iconSize: [size, size],
-            iconAnchor: [size / 2, size]
-        })
-        const marker = L.marker([spot.latitude, spot.longitude], { icon })
+    visibleSpots.value = spots.value.filter(spot => {
+        const position = new google.maps.LatLng(parseFloat(spot.latitude), parseFloat(spot.longitude))
+        return bounds.contains(position)
+    })
 
-        marker.addTo(map.value)
-        marker.on('click', () => {
-            router.push(`/spots/${spot.id}`)
-        })
-        markers.value.push(marker)
+    // updateVisibleSpotsの後にupdateMarkersを呼び出し（デバウンス）
+    if (updateMarkersTimeout) {
+        clearTimeout(updateMarkersTimeout)
+    }
+    updateMarkersTimeout = setTimeout(() => {
+        updateMarkers()
+    }, 100)
+}
+
+        // マーカー生成・更新
+        const updateMarkers = () => {
+            // 既存のマーカーをすべて削除
+            markers.value.forEach(marker => {
+                marker.setMap(null)
+            })
+            markers.value = []
+
+            if (!map.value) return
+
+            // 地図の表示範囲内のスポットを直接計算
+            const bounds = map.value.getBounds()
+            if (!bounds) return
+
+            // 表示範囲内のスポットを直接フィルタリング
+            const visibleSpotsList = spots.value.filter(spot => {
+                const position = new google.maps.LatLng(parseFloat(spot.latitude), parseFloat(spot.longitude))
+                return bounds.contains(position)
+            })
+
+            // 検索キーワードで絞り込み
+            const spotsToDisplay = visibleSpotsList.filter(spot =>
+                spot.name.includes(searchKeyword.value)
+            )
+
+            // 新しいマーカーを作成
+            spotsToDisplay.forEach((spot) => {
+                const marker = new google.maps.Marker({
+                    position: { lat: parseFloat(spot.latitude), lng: parseFloat(spot.longitude) },
+                    map: map.value,
+                    title: spot.name,
+                    icon: {
+                        url: '/spot.png',
+                        scaledSize: new google.maps.Size(30, 30),
+                        anchor: new google.maps.Point(15, 30)
+                    }
+                })
+
+                // マーカーにspotIdを保存
+                marker.spotId = spot.id
+
+                marker.addListener('click', () => {
+                    router.push(`/spots/${spot.id}`)
+                })
+
+                markers.value.push(marker)
+            })
+        }
+
+const initMap = async () => {
+    // Google Maps APIのライブラリを動的に読み込み
+    const { Map } = await google.maps.importLibrary("maps")
+
+    // デフォルトの中心位置（東京）
+    let center = { lat: 35.681236, lng: 139.767125 }
+
+    // 現在位置を取得を試行
+    if (navigator.geolocation) {
+        try {
+            const position = await new Promise((resolve, reject) => {
+                navigator.geolocation.getCurrentPosition(resolve, reject, {
+                    enableHighAccuracy: true,
+                    timeout: 5000,
+                    maximumAge: 300000 // 5分間キャッシュ
+                })
+            })
+
+                    center = {
+                        lat: position.coords.latitude,
+                        lng: position.coords.longitude
+                    }
+        } catch (error) {
+            // 現在位置の取得に失敗した場合は東京を表示
+        }
+    }
+
+    const mapOptions = {
+        center: center,
+        zoom: 12,
+        streetViewControl: false, // ストリートビューコントロールを無効化
+        fullscreenControl: false, // フルスクリーンコントロールを無効化
+        mapTypeControl: false, // マップタイプコントロールを無効化
+        zoomControl: false, // ズームコントロールを無効化
+        disableDefaultUI: true, // デフォルトのUIをすべて無効化
+        styles: [
+            {
+                featureType: 'poi',
+                elementType: 'labels',
+                stylers: [{ visibility: 'off' }]
+            }
+        ]
+    }
+
+    map.value = new Map(mapContainer.value, mapOptions)
+
+    // マップの読み込み完了後にスポットを読み込み
+    google.maps.event.addListenerOnce(map.value, 'idle', () => {
+        loadSpots()
+    })
+
+    // 地図の移動やズーム時に表示範囲内のスポットを更新（デバウンス）
+    let boundsChangedTimeout
+    google.maps.event.addListener(map.value, 'bounds_changed', () => {
+        clearTimeout(boundsChangedTimeout)
+        boundsChangedTimeout = setTimeout(() => {
+            updateVisibleSpots()
+        }, 300) // 300ms後に実行
     })
 }
 
-const initMap = () => {
-    map.value = L.map('map').setView([35.681236, 139.767125], 12)
+    // 検索キーワードが変更されたときにマーカーを更新（デバウンス）
+    watch(searchKeyword, () => {
+        if (map.value) {
+            if (updateMarkersTimeout) {
+                clearTimeout(updateMarkersTimeout)
+            }
+            updateMarkersTimeout = setTimeout(() => {
+                updateVisibleSpots()
+            }, 100)
+        }
+    })
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors'
-    }).addTo(map.value)
+    // 現在地ボタンのクリック処理
+    const getCurrentLocation = () => {
+        if (!navigator.geolocation) {
+            alert('このブラウザでは位置情報がサポートされていません。')
+            return
+        }
 
-    loadSpots()
-    map.value.on('zoomend', updateMarkers)
-}
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const userLocation = {
+                    lat: position.coords.latitude,
+                    lng: position.coords.longitude
+                }
 
-// 検索キーワードが変更されたときにマーカーを更新
-watch(searchKeyword, () => {
-    if (map.value) {
-        updateMarkers()
+                    // マップの中心を現在地に移動
+                    map.value.setCenter(userLocation)
+                    map.value.setZoom(15) // 現在地では少しズームイン
+            },
+            (error) => {
+                alert('位置情報の取得に失敗しました。')
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 300000 // 5分間キャッシュ
+            }
+        )
     }
-})
 
-onMounted(() => {
-    initMap()
+    // マーカーのハイライト機能
+    const highlightMarker = (spotId) => {
+        const marker = markers.value.find(m => m.spotId === spotId)
+        if (marker) {
+            // ピンクグラデーションマーカーに変更（ログインボタンと同じ色）
+            marker.setIcon({
+                url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+                    <svg width="30" height="30" viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" style="stop-color:#e91e63;stop-opacity:1" />
+                                <stop offset="100%" style="stop-color:#c2185b;stop-opacity:1" />
+                            </linearGradient>
+                            <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+                                <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000000" flood-opacity="0.3"/>
+                            </filter>
+                        </defs>
+                        <circle cx="15" cy="15" r="12" fill="url(#grad1)" stroke="#ffffff" stroke-width="2" filter="url(#shadow)"/>
+                    </svg>
+                `),
+                scaledSize: new google.maps.Size(30, 30),
+                anchor: new google.maps.Point(15, 30)
+            })
+        }
+    }
+
+    const unhighlightMarker = (spotId) => {
+        const marker = markers.value.find(m => m.spotId === spotId)
+        if (marker) {
+            // マーカーを元の画像に戻す
+            marker.setIcon({
+                url: '/spot.png',
+                scaledSize: new google.maps.Size(30, 30),
+                anchor: new google.maps.Point(15, 30)
+            })
+        }
+    }
+
+onMounted(async () => {
+    // Google Maps APIの読み込み完了を待つ
+    await new Promise((resolve) => {
+        if (window.google && window.google.maps && window.google.maps.importLibrary) {
+            resolve()
+        } else {
+            const checkGoogle = () => {
+                if (window.google && window.google.maps && window.google.maps.importLibrary) {
+                    resolve()
+                } else {
+                    setTimeout(checkGoogle, 100)
+                }
+            }
+            checkGoogle()
+        }
+    })
+
+    await nextTick()
+    await initMap()
 })
 </script>
 
@@ -146,12 +344,20 @@ onMounted(() => {
 /* 検索バーオーバーレイ */
 .search-overlay {
   position: absolute;
-  top: 20px;
+  top: 80px; /* ヘッダーの高さ分下げる */
   left: 50%;
   transform: translateX(-50%);
   z-index: 1000;
   width: 90%;
   max-width: 400px;
+}
+
+/* 現在地ボタンオーバーレイ */
+.location-button-overlay {
+  position: absolute;
+  top: 80px; /* ヘッダーの高さ分下げる */
+  right: 20px;
+  z-index: 1000;
 }
 
 .search-bar {
@@ -176,12 +382,39 @@ onMounted(() => {
   background: rgba(255, 255, 255, 1);
 }
 
+/* 現在地ボタン */
+.location-btn {
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, #28a745, #20c997);
+  border: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
+  color: white;
+}
+
+.location-btn:hover {
+  background: linear-gradient(135deg, #20c997, #17a2b8);
+  box-shadow: 0 6px 16px rgba(40, 167, 69, 0.5);
+  transform: translateY(-2px);
+}
+
+.location-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(40, 167, 69, 0.4);
+}
+
 /* スポット一覧オーバーレイ */
 .spots-overlay {
   position: absolute;
   bottom: 20px;
-  left: 20px;
   right: 20px;
+  width: 300px; /* 固定幅でコンパクトに */
   z-index: 1000;
   max-height: 60vh;
 }
@@ -194,7 +427,7 @@ onMounted(() => {
   backdrop-filter: blur(15px);
   -webkit-backdrop-filter: blur(15px); /* Safari対応 */
   border: 1px solid rgba(255, 255, 255, 0.2);
-  padding: 12px 16px;
+  padding: 8px 16px; /* 上下の余白を狭く */
   border-radius: 12px 12px 0 0;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
@@ -203,27 +436,30 @@ onMounted(() => {
   margin: 0;
   font-size: 16px;
   font-family: 'Inter', 'Noto Sans JP', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  font-weight: 600;
+  font-weight: 400; /* 細く */
   letter-spacing: -0.02em;
   color: #333;
 }
 
 .toggle-btn {
-  background: #007bff;
+  background: linear-gradient(135deg, #20c997, #17a2b8);
   color: white;
   border: none;
   padding: 6px 12px;
-  border-radius: 6px;
+  border-radius: 20px;
   font-size: 12px;
   font-family: 'Inter', 'Noto Sans JP', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-weight: 500;
   letter-spacing: -0.01em;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(32, 201, 151, 0.3);
 }
 
 .toggle-btn:hover {
-  background: #0056b3;
+  background: linear-gradient(135deg, #17a2b8, #138496);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(32, 201, 151, 0.4);
 }
 
 .spots-list {
@@ -240,7 +476,7 @@ onMounted(() => {
 
 .spot-item {
   cursor: pointer;
-  padding: 12px 16px;
+  padding: 8px 16px; /* 上下の余白を狭く */
   border-bottom: 1px solid rgba(0, 0, 0, 0.1);
   transition: all 0.2s ease;
   font-size: 14px;
@@ -254,26 +490,71 @@ onMounted(() => {
   border-bottom: none;
 }
 
-.spot-item:hover {
-  background: rgba(0, 123, 255, 0.1);
-  color: #007bff;
+  .spot-item:hover {
+    background: rgba(0, 123, 255, 0.1);
+    color: #007bff;
+    transform: translateX(4px);
+    transition: all 0.2s ease;
+  }
+
+/* 検索結果なしメッセージ */
+.no-results {
+  padding: 16px;
+  text-align: center;
+  color: #666;
+  font-size: 14px;
+  font-family: 'Inter', 'Noto Sans JP', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-style: italic;
+}
+
+/* スライドアップアニメーション */
+.slide-up-enter-active,
+.slide-up-leave-active {
+  transition: all 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  transform-origin: bottom;
+}
+
+.slide-up-enter-from {
+  opacity: 0;
+  transform: translateY(30px) scaleY(0);
+}
+
+.slide-up-leave-to {
+  opacity: 0;
+  transform: translateY(30px) scaleY(0);
+}
+
+.slide-up-enter-to,
+.slide-up-leave-from {
+  opacity: 1;
+  transform: translateY(0) scaleY(1);
 }
 
 /* レスポンシブデザイン */
 @media (max-width: 768px) {
   .search-overlay {
-    top: 10px;
+    top: 70px; /* モバイルでもヘッダーと被らないように */
     width: 95%;
+  }
+
+  .location-button-overlay {
+    top: 70px; /* モバイルでもヘッダーと被らないように */
+    right: 10px;
+  }
+
+  .location-btn {
+    width: 44px;
+    height: 44px;
   }
 
   .spots-overlay {
     bottom: 10px;
-    left: 10px;
     right: 10px;
+    width: 280px; /* モバイルでは少し小さく */
   }
 
   .spots-header {
-    padding: 10px 12px;
+    padding: 6px 12px; /* モバイルでも上下の余白を狭く */
   }
 
   .spots-header h3 {
@@ -281,15 +562,9 @@ onMounted(() => {
   }
 
   .spot-item {
-    padding: 10px 12px;
+    padding: 6px 12px; /* モバイルでも上下の余白を狭く */
     font-size: 13px;
   }
 }
 
-/* ロゴとの重複を避ける */
-@media (min-width: 769px) {
-  .search-overlay {
-    top: 80px; /* ロゴの高さ分下げる */
-  }
-}
 </style>

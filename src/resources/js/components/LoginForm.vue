@@ -10,7 +10,7 @@
           v-model="email"
           type="email"
           required
-          placeholder="st.shunmasaki@gmail.com"
+          placeholder="メールアドレスを入力してください"
           class="form-input"
         />
       </div>
