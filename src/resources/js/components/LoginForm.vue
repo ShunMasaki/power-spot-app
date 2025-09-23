@@ -7,6 +7,7 @@
         <label for="email">メールアドレス (あるいはID) *</label>
         <input
           id="email"
+          ref="emailInput"
           v-model="email"
           type="email"
           required
@@ -92,7 +93,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import pencilIcon from '../assets/icons/pencil.png'
 import goodIcon from '../assets/icons/good.png'
@@ -103,7 +104,27 @@ const emit = defineEmits(['login-success', 'switch-to-signup'])
 const email = ref('')
 const password = ref('')
 const showPassword = ref(false)
+const emailInput = ref(null)
 const auth = useAuthStore()
+
+// コンポーネントがマウントされた時にメールアドレス入力欄にフォーカス
+onMounted(() => {
+  if (emailInput.value) {
+    emailInput.value.focus()
+  }
+})
+
+// 外部からフォーカスを設定するためのメソッドを公開
+const focus = () => {
+  if (emailInput.value) {
+    emailInput.value.focus()
+  }
+}
+
+// defineExposeでfocusメソッドを公開
+defineExpose({
+  focus
+})
 
 const handleLogin = async () => {
     // ログイン試行前にエラーメッセージをクリア

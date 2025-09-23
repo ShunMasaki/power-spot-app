@@ -7,13 +7,13 @@
                 </svg>
             </button>
             <!-- login-success を SpotDetail.vue に伝える -->
-            <LoginForm @login-success="handleLoginSuccess" @switch-to-signup="switchToSignup" />
+            <LoginForm ref="loginFormRef" @login-success="handleLoginSuccess" @switch-to-signup="switchToSignup" />
         </div>
     </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, watch, nextTick } from 'vue'
 import LoginForm from './LoginForm.vue'
 import { defineProps, defineEmits } from 'vue'
 
@@ -21,6 +21,8 @@ const props = defineProps({
     isOpen: Boolean,
 })
 const emit = defineEmits(['close', 'login-success', 'switch-to-signup'])
+
+const loginFormRef = ref(null)
 
 const close = () => {
     emit('close')
@@ -34,6 +36,19 @@ const handleLoginSuccess = () => {
 const switchToSignup = () => {
     emit('switch-to-signup')
 }
+
+// モーダルが開かれた時にフォーカスを設定
+watch(() => props.isOpen, async (isOpen) => {
+    if (isOpen) {
+        await nextTick()
+        // 少し遅延してからフォーカスを設定（モーダルのアニメーション完了後）
+        setTimeout(() => {
+            if (loginFormRef.value && loginFormRef.value.focus) {
+                loginFormRef.value.focus()
+            }
+        }, 100)
+    }
+})
 
 </script>
 
@@ -50,7 +65,7 @@ const switchToSignup = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 5000; /* 最前面: 認証モーダル */
   animation: fadeIn 0.3s ease-out;
 }
 

@@ -4,6 +4,8 @@ namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 use App\Rules\NoBannedWords;
+use App\Rules\NoEmailOrUrl;
+use App\Rules\NoSpamContent;
 
 class StoreReviewRequest extends FormRequest
 {
@@ -24,7 +26,14 @@ class StoreReviewRequest extends FormRequest
     {
         return [
             'rating' => ['required', 'integer', 'between:1,5'],
-            'comment' => ['required', 'string', 'max:300', new NoBannedWords],
+            'comment' => [
+                'required',
+                'string',
+                'max:300',
+                new NoBannedWords,
+                new NoEmailOrUrl,
+                new NoSpamContent
+            ],
         ];
     }
 

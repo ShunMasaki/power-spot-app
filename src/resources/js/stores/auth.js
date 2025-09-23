@@ -9,6 +9,9 @@ export const useAuthStore = defineStore('auth', {
         loginModalOpen: false,
         signupModalOpen: false,
     }),
+    getters: {
+        isAuthenticated: (state) => state.isLoggedIn,
+    },
     actions: {
         async initializeAuth() {
             try {

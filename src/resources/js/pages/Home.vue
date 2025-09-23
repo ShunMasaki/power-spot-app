@@ -38,23 +38,43 @@
                     <div
                         v-for="spot in filteredSpots"
                         :key="spot.id"
-                        @click="goToSpotDetail(spot.id)"
+                        @click="openSpotModal(spot.id)"
                         @mouseenter="highlightMarker(spot.id)"
                         @mouseleave="unhighlightMarker(spot.id)"
                         class="spot-item"
                     >
-                        {{ spot.name }}
+                        <div class="spot-name">{{ spot.name }}</div>
+                        <div v-if="spot.spot_benefits && spot.spot_benefits.length > 0" class="spot-benefits">
+                            <span
+                                v-for="benefit in spot.spot_benefits"
+                                :key="benefit.id"
+                                class="benefit-tag"
+                                :title="benefit.benefit_type.label"
+                            >
+                                {{ benefit.benefit_type.label }}
+                            </span>
+                        </div>
                     </div>
                 </div>
             </transition>
         </div>
     </div>
+
+    <!-- スポット詳細モーダル -->
+    <SpotDetailModal
+        :isOpen="showSpotModal"
+        :spotId="selectedSpotId"
+        @close="closeSpotModal"
+        @openReview="openReviewForm"
+        @reopen="reopenSpotModal"
+    />
 </template>
 
 <script setup>
 import { onMounted, ref, computed, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
+import SpotDetailModal from '../components/SpotDetailModal.vue'
 
 const router = useRouter()
 const spots = ref([])
@@ -64,6 +84,10 @@ const mapContainer = ref(null)
 const markers = ref([])
 const showSpotsList = ref(false)
 let updateMarkersTimeout = null
+
+// スポット詳細モーダル
+const showSpotModal = ref(false)
+const selectedSpotId = ref(null)
 
 // 地図の表示範囲内のスポット
 const visibleSpots = ref([])
@@ -76,9 +100,31 @@ const filteredSpots = computed(() => {
   )
 })
 
-// スポット詳細へ遷移
-const goToSpotDetail = id => {
-  router.push(`/spots/${id}`)
+// スポット詳細モーダルを開く
+const openSpotModal = (spotId) => {
+  console.log('openSpotModal - spotId:', spotId)
+  selectedSpotId.value = spotId
+  showSpotModal.value = true
+}
+
+// スポット詳細モーダルを閉じる
+const closeSpotModal = () => {
+  console.log('closeSpotModal called')
+  showSpotModal.value = false
+  selectedSpotId.value = null
+}
+
+// スポット詳細モーダルを再度開く（ログイン成功後）
+const reopenSpotModal = (spotId) => {
+  console.log('reopenSpotModal - spotId:', spotId)
+  selectedSpotId.value = spotId
+  showSpotModal.value = true
+}
+
+// レビューフォームを開く（将来の実装用）
+const openReviewForm = (spotId) => {
+  // TODO: レビューフォーム実装時に追加
+  console.log('レビューフォーム開く:', spotId)
 }
 
 // スポット取得
@@ -155,7 +201,7 @@ const updateVisibleSpots = () => {
                 marker.spotId = spot.id
 
                 marker.addListener('click', () => {
-                    router.push(`/spots/${spot.id}`)
+                    openSpotModal(spot.id)
                 })
 
                 markers.value.push(marker)
@@ -434,6 +480,8 @@ onMounted(async () => {
 
 .spots-header h3 {
   margin: 0;
+
+
   font-size: 16px;
   font-family: 'Inter', 'Noto Sans JP', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-weight: 400; /* 細く */
@@ -490,12 +538,34 @@ onMounted(async () => {
   border-bottom: none;
 }
 
-  .spot-item:hover {
-    background: rgba(0, 123, 255, 0.1);
-    color: #007bff;
-    transform: translateX(4px);
-    transition: all 0.2s ease;
-  }
+        .spot-item:hover {
+            background: rgba(0, 123, 255, 0.1);
+            color: #007bff;
+            transform: translateX(4px);
+            transition: all 0.2s ease;
+        }
+
+        .spot-name {
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .spot-benefits {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-top: 4px;
+        }
+
+        .benefit-tag {
+            background: linear-gradient(135deg, #e91e63, #c2185b);
+            color: white;
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 8px;
+            font-weight: 400;
+            white-space: nowrap;
+        }
 
 /* 検索結果なしメッセージ */
 .no-results {

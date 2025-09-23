@@ -47,7 +47,7 @@
 </template>
 
 <script setup>
-import { ref, watch, provide } from 'vue'
+import { ref, watch, provide, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import LoginModal from './components/LoginModal.vue'
@@ -55,6 +55,11 @@ import SignupModal from './components/SignupModal.vue'
 
 const auth = useAuthStore()
 const route = useRoute()
+
+// アプリ起動時に認証状態を初期化
+onMounted(async () => {
+  await auth.initializeAuth()
+})
 
 // ログイン成功時のコールバックを管理
 const loginSuccessCallback = ref(null)
