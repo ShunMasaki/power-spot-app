@@ -80,7 +80,7 @@
               :class="{ active: activeTab === 'photos' }"
               class="tab-btn"
             >
-              写真
+              画像アップロード
             </button>
           </div>
 
@@ -210,14 +210,44 @@
             <!-- 写真タブ -->
             <div v-if="activeTab === 'photos'" class="tab-panel">
               <div class="photos-section">
-                <div class="upload-area">
-                  <p>写真のアップロード機能は準備中です</p>
-                  <div class="upload-placeholder">
+                <!-- ログインチェック -->
+                <div v-if="!auth.isLoggedIn" class="login-required">
+                  <div class="login-message">
                     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M21 19V5C21 3.9 20.1 3 19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19ZM8.5 13.5L11 16.51L14.5 12L19 18H5L8.5 13.5Z" fill="#9CA3AF"/>
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" fill="currentColor"/>
                     </svg>
-                    <p>おみくじ・御朱印の写真をアップロード</p>
+                    <p>画像をアップロードするにはログインが必要です</p>
+                    <button @click="auth.openLoginModal" class="login-btn">
+                      ログインする
+                    </button>
                   </div>
+                </div>
+
+                <!-- アップロード機能 -->
+                <div v-else>
+                  <ImageUploader
+                    title="おみくじ写真"
+                    description="おみくじの写真をアップロードしてください（最大2枚）"
+                    type="omikuji"
+                    :spot-id="props.spotId"
+                    :max-files="2"
+                    :initial-images="omikujiImages"
+                    @uploaded="handleImageUploaded"
+                    @removed="handleImageRemoved"
+                    @error="handleUploadError"
+                  />
+
+                  <ImageUploader
+                    title="御朱印写真"
+                    description="御朱印の写真をアップロードしてください（最大2枚）"
+                    type="goshuin"
+                    :spot-id="props.spotId"
+                    :max-files="2"
+                    :initial-images="goshuinImages"
+                    @uploaded="handleImageUploaded"
+                    @removed="handleImageRemoved"
+                    @error="handleUploadError"
+                  />
                 </div>
               </div>
             </div>
@@ -247,6 +277,7 @@ import { useAuthStore } from '../stores/auth'
 import ReviewForm from './ReviewForm.vue'
 import ImageGallery from './ImageGallery.vue'
 import BusinessHours from './BusinessHours.vue'
+import ImageUploader from './ImageUploader.vue'
 import axios from 'axios'
 
 const props = defineProps({
@@ -275,6 +306,8 @@ const currentReviewPage = ref(1) // 現在のレビューページ
 const spotImages = ref([]) // スポットの画像
 const businessHours = ref([]) // 営業時間
 const spotTypes = ref([]) // スポットのジャンル
+const omikujiImages = ref([]) // おみくじ画像
+const goshuinImages = ref([]) // 御朱印画像
 const isFavorited = ref(false) // お気に入り状態
 const favoriteLoading = ref(false) // お気に入り処理中
 
@@ -321,6 +354,9 @@ const switchTab = (tab) => {
   activeTab.value = tab
   if (tab === 'reviews') {
     currentReviewPage.value = 1
+  } else if (tab === 'photos' && auth.isLoggedIn) {
+    // 写真タブがアクティブになったときに画像を再読み込み
+    loadUserImages()
   }
 }
 
@@ -426,6 +462,9 @@ const loadSpotDetail = async () => {
 
     // Google Places APIから画像と営業時間を取得
     await loadGooglePlacesData(spot.value)
+
+    // ユーザーの画像を読み込み
+    await loadUserImages()
   } catch (error) {
     console.error('スポット詳細の読み込みエラー:', error)
   } finally {
@@ -525,6 +564,50 @@ const openRouteInMaps = (event) => {
   }
 }
 
+// 画像アップロード成功時の処理
+const handleImageUploaded = (image) => {
+  if (image.type === 'omikuji') {
+    omikujiImages.value.push(image)
+  } else if (image.type === 'goshuin') {
+    goshuinImages.value.push(image)
+  }
+}
+
+// 画像削除時の処理
+const handleImageRemoved = (image) => {
+  if (image.type === 'omikuji') {
+    const index = omikujiImages.value.findIndex(img => img.id === image.id)
+    if (index !== -1) {
+      omikujiImages.value.splice(index, 1)
+    }
+  } else if (image.type === 'goshuin') {
+    const index = goshuinImages.value.findIndex(img => img.id === image.id)
+    if (index !== -1) {
+      goshuinImages.value.splice(index, 1)
+    }
+  }
+}
+
+// アップロードエラー時の処理
+const handleUploadError = (error) => {
+  console.error('Upload error:', error)
+}
+
+// ユーザーの画像を読み込み
+const loadUserImages = async () => {
+  if (!auth.isLoggedIn || !props.spotId) return
+
+  try {
+    const response = await axios.get(`/api/spots/${props.spotId}/user-images`)
+    const images = response.data
+
+    omikujiImages.value = images.filter(img => img.type === 'omikuji')
+    goshuinImages.value = images.filter(img => img.type === 'goshuin')
+  } catch (error) {
+    console.error('Failed to load user images:', error)
+  }
+}
+
 // spotIdが変更されたときにデータを読み込み
 watch(() => props.spotId, (newSpotId) => {
   if (newSpotId && props.isOpen) {
@@ -536,6 +619,8 @@ watch(() => props.spotId, (newSpotId) => {
 watch(() => props.isOpen, (isOpen) => {
   if (isOpen && props.spotId) {
     savedSpotId.value = props.spotId // モーダルが開かれた時にspotIdを保存
+    activeTab.value = 'overview' // 常に概要タブから開始
+    currentReviewPage.value = 1 // レビューページもリセット
     loadSpotDetail()
     checkFavoriteStatus() // お気に入り状態をチェック
   }
@@ -545,8 +630,12 @@ watch(() => props.isOpen, (isOpen) => {
 watch(() => auth.isLoggedIn, (isLoggedIn) => {
   if (isLoggedIn && props.isOpen && props.spotId) {
     checkFavoriteStatus()
+    loadUserImages() // ログイン後に画像も再読み込み
   } else if (!isLoggedIn) {
     isFavorited.value = false
+    // ログアウト時に画像をクリア
+    omikujiImages.value = []
+    goshuinImages.value = []
   }
 })
 </script>
@@ -1265,8 +1354,51 @@ watch(() => auth.isLoggedIn, (isLoggedIn) => {
 
 /* 写真アップロードエリア */
 .photos-section {
+  padding: 24px 0;
+}
+
+.login-required {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 300px;
+}
+
+.login-message {
   text-align: center;
-  padding: 40px 20px;
+  padding: 48px 24px;
+  background: #f8f9fa;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  max-width: 400px;
+}
+
+.login-message svg {
+  margin-bottom: 16px;
+  color: #6b7280;
+}
+
+.login-message p {
+  color: #4b5563;
+  font-size: 16px;
+  margin-bottom: 20px;
+}
+
+.login-btn {
+  background: linear-gradient(135deg, #ec4899 0%, #be185d 100%);
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.login-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(236, 72, 153, 0.3);
 }
 
 .upload-area p {
