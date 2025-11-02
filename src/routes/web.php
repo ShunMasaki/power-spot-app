@@ -3,19 +3,13 @@
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Response;
 
-Route::get('/', function () {
-    return view('welcome');
-});
+// API ルートは api.php で定義
 
-// 静的ファイル配信用のルート
+// 静的ファイル配信用のルート（SPAフォールバックより先に定義）
 Route::get('/storage/{path}', function ($path) {
-    \Log::info('Storage route accessed', ['path' => $path]);
-
     $filePath = storage_path('app/public/' . $path);
-    \Log::info('File path', ['filePath' => $filePath, 'exists' => file_exists($filePath)]);
 
     if (!file_exists($filePath)) {
-        \Log::warning('File not found', ['path' => $filePath]);
         abort(404);
     }
 
@@ -26,3 +20,8 @@ Route::get('/storage/{path}', function ($path) {
         'Cache-Control' => 'public, max-age=31536000',
     ]);
 })->where('path', '.*');
+
+// SPA フォールバックルート（最後に定義して、他のルートにマッチしなかった場合のみ適用）
+Route::fallback(function () {
+    return view('welcome');
+});

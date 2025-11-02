@@ -20,8 +20,8 @@ class NoSpamContent implements ValidationRule
             return;
         }
 
-        // 過度な絵文字や記号の連続をチェック
-        if (preg_match('/[!！？?]{4,}/', $value)) {
+        // 過度な絵文字や記号の連続をチェック（連続して5つ以上）
+        if (preg_match('/[!！]{5,}/', $value) || preg_match('/[?？]{5,}/', $value)) {
             $fail('記号の連続使用は控えめにお願いします。');
             return;
         }

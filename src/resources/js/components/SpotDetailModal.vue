@@ -17,11 +17,28 @@
                     </div>
                   </div>
 
-                  <!-- お気に入りボタン -->
-                  <div class="favorite-section">
+                  <!-- アクションボタン -->
+                  <div class="action-buttons">
+                    <!-- 訪問済みボタン -->
+                    <button
+                      @click="toggleVisit"
+                      class="action-btn visit-btn"
+                      :class="{ 'visited': isVisited }"
+                      :disabled="visitLoading"
+                    >
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" :class="{ 'check-filled': isVisited }">
+                        <path d="M9 11l3 3L22 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                      <span class="action-text">
+                        {{ isVisited ? '訪問済み' : '行ったよ' }}
+                      </span>
+                    </button>
+
+                    <!-- お気に入りボタン -->
                     <button
                       @click="toggleFavorite"
-                      class="favorite-btn"
+                      class="action-btn favorite-btn"
                       :class="{ 'favorited': isFavorited }"
                       :disabled="favoriteLoading"
                     >
@@ -31,8 +48,9 @@
                       <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" class="heart-filled">
                         <path d="M20.84 4.61C20.3292 4.099 19.7228 3.69364 19.0554 3.41708C18.3879 3.14052 17.6725 2.99817 16.95 2.99817C16.2275 2.99817 15.5121 3.14052 14.8446 3.41708C14.1772 3.69364 13.5708 4.099 13.06 4.61L12 5.67L10.94 4.61C9.9083 3.5783 8.50903 2.9987 7.05 2.9987C5.59096 2.9987 4.19169 3.5783 3.16 4.61C2.1283 5.6417 1.5487 7.04097 1.5487 8.5C1.5487 9.95903 2.1283 11.3583 3.16 12.39L12 21.23L20.84 12.39C21.351 11.8792 21.7563 11.2728 22.0329 10.6053C22.3095 9.93789 22.4518 9.22248 22.4518 8.5C22.4518 7.77752 22.3095 7.06211 22.0329 6.39467C21.7563 5.72723 21.351 5.1208 20.84 4.61Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                       </svg>
-                      <span class="favorite-text">
-                        {{ isFavorited ? 'お気に入り済み' : 'お気に入りに追加' }}
+                      <span class="action-text">
+                        <template v-if="isFavorited">お気に入り<br>済み</template>
+                        <template v-else>お気に入り</template>
                       </span>
                     </button>
                   </div>
@@ -227,7 +245,6 @@
                 <div v-else>
                   <ImageUploader
                     title="おみくじ写真"
-                    description="おみくじの写真をアップロードしてください（最大2枚）"
                     type="omikuji"
                     :spot-id="props.spotId"
                     :max-files="2"
@@ -239,7 +256,6 @@
 
                   <ImageUploader
                     title="御朱印写真"
-                    description="御朱印の写真をアップロードしてください（最大2枚）"
                     type="goshuin"
                     :spot-id="props.spotId"
                     :max-files="2"
@@ -288,6 +304,10 @@ const props = defineProps({
   spotId: {
     type: [Number, String],
     default: null
+  },
+  initialTab: {
+    type: String,
+    default: 'overview'
   }
 })
 
@@ -310,6 +330,8 @@ const omikujiImages = ref([]) // おみくじ画像
 const goshuinImages = ref([]) // 御朱印画像
 const isFavorited = ref(false) // お気に入り状態
 const favoriteLoading = ref(false) // お気に入り処理中
+const isVisited = ref(false) // 訪問済み状態
+const visitLoading = ref(false) // 訪問済み処理中
 
 // ログイン成功時のコールバック関数を取得
 const setLoginSuccessCallback = inject('setLoginSuccessCallback')
@@ -404,6 +426,51 @@ const checkFavoriteStatus = async () => {
   } catch (error) {
     console.error('お気に入り状態の確認に失敗:', error)
     isFavorited.value = false
+  }
+}
+
+// 訪問済み状態をチェック
+const checkVisitStatus = async () => {
+  if (!auth.isLoggedIn || !props.spotId) {
+    isVisited.value = false
+    return
+  }
+
+  try {
+    const response = await axios.get(`/api/spots/${props.spotId}/visit/check`)
+    isVisited.value = response.data.is_visited
+  } catch (error) {
+    console.error('訪問済み状態の確認に失敗:', error)
+    isVisited.value = false
+  }
+}
+
+// 訪問済み切り替え
+const toggleVisit = async () => {
+  if (!auth.isLoggedIn) {
+    auth.openLoginModal()
+    return
+  }
+
+  if (visitLoading.value) return
+
+  visitLoading.value = true
+
+  try {
+    if (isVisited.value) {
+      await axios.delete(`/api/spots/${props.spotId}/visit`)
+      isVisited.value = false
+    } else {
+      await axios.post(`/api/spots/${props.spotId}/visit`)
+      isVisited.value = true
+    }
+  } catch (error) {
+    console.error('訪問済み操作に失敗:', error)
+    if (error.response?.status === 401) {
+      auth.openLoginModal()
+    }
+  } finally {
+    visitLoading.value = false
   }
 }
 
@@ -619,20 +686,23 @@ watch(() => props.spotId, (newSpotId) => {
 watch(() => props.isOpen, (isOpen) => {
   if (isOpen && props.spotId) {
     savedSpotId.value = props.spotId // モーダルが開かれた時にspotIdを保存
-    activeTab.value = 'overview' // 常に概要タブから開始
+    activeTab.value = props.initialTab || 'overview' // 指定されたタブまたは概要タブから開始
     currentReviewPage.value = 1 // レビューページもリセット
     loadSpotDetail()
     checkFavoriteStatus() // お気に入り状態をチェック
+    checkVisitStatus() // 訪問済み状態をチェック
   }
 })
 
-// 認証状態が変更されたときにお気に入り状態をチェック
+// 認証状態が変更されたときにお気に入り・訪問済み状態をチェック
 watch(() => auth.isLoggedIn, (isLoggedIn) => {
   if (isLoggedIn && props.isOpen && props.spotId) {
     checkFavoriteStatus()
+    checkVisitStatus()
     loadUserImages() // ログイン後に画像も再読み込み
   } else if (!isLoggedIn) {
     isFavorited.value = false
+    isVisited.value = false
     // ログアウト時に画像をクリア
     omikujiImages.value = []
     goshuinImages.value = []
@@ -1429,12 +1499,14 @@ watch(() => auth.isLoggedIn, (isLoggedIn) => {
   margin: 0;
 }
 
-/* お気に入りボタン */
-.favorite-section {
+/* アクションボタン */
+.action-buttons {
+  display: flex;
+  gap: 8px;
   margin-top: 16px;
 }
 
-.favorite-btn {
+.action-btn {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1457,11 +1529,29 @@ watch(() => auth.isLoggedIn, (isLoggedIn) => {
   color: #374151;
 }
 
-.favorite-btn:disabled {
+.action-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 
+/* 訪問済みボタン */
+.visit-btn.visited {
+  background: white;
+  border-color: #e5e7eb;
+  color: #6b7280;
+}
+
+.visit-btn.visited:hover {
+  background: #f9fafb;
+  border-color: #d1d5db;
+  color: #374151;
+}
+
+.visit-btn.visited svg {
+  color: #10b981;
+}
+
+/* お気に入りボタン */
 .favorite-btn.favorited {
   background: white;
   border-color: #e5e7eb;
@@ -1478,7 +1568,7 @@ watch(() => auth.isLoggedIn, (isLoggedIn) => {
   color: #e91e63;
 }
 
-.favorite-btn svg {
+.action-btn svg {
   flex-shrink: 0;
   transition: all 0.3s ease;
 }
@@ -1506,19 +1596,37 @@ watch(() => auth.isLoggedIn, (isLoggedIn) => {
   }
 }
 
-/* ハートマークのホバー効果 */
-.favorite-btn:hover svg {
+/* アイコンのホバー効果 */
+.action-btn:hover svg {
   transform: scale(1.1);
 }
 
-.favorite-btn.favorited:hover svg {
+.favorite-btn.favorited:hover svg,
+.visit-btn.visited:hover svg {
   transform: scale(1.1);
   filter: brightness(1.1);
 }
 
-.favorite-text {
+.action-text {
   font-size: 14px;
   font-weight: 500;
+}
+
+/* チェックマークのアニメーション */
+.check-filled {
+  animation: checkBounce 0.5s ease-in-out;
+}
+
+@keyframes checkBounce {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.2);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 /* 経路リンク */

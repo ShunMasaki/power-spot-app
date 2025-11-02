@@ -13,22 +13,27 @@ class SpotSeeder extends Seeder
      */
     public function run()
     {
-        Spot::create([
-            'name' => '明治神宮',
-            'description' => '東京・原宿にある有名な神社。',
-            'address' => '東京都渋谷区代々木神園町1-1',
-            'latitude' => 35.6764,
-            'longitude' => 139.6993,
-            'image_url' => null,
-        ]);
+        // updateOrCreate を使うことで、重複を防ぐ
+        Spot::updateOrCreate(
+            ['name' => '明治神宮'], // 検索条件
+            [
+                'description' => '東京・原宿にある有名な神社。',
+                'address' => '東京都渋谷区代々木神園町1-1',
+                'latitude' => 35.6764,
+                'longitude' => 139.6993,
+                'image_url' => null,
+            ]
+        );
 
-        Spot::create([
-            'name' => '東京大神宮',
-            'description' => '縁結びのご利益で人気の神社。',
-            'address' => '東京都千代田区富士見2-4-1',
-            'latitude' => 35.7003,
-            'longitude' => 139.7461,
-            'image_url' => null,
-        ]);
+        Spot::updateOrCreate(
+            ['name' => '東京大神宮'], // 検索条件
+            [
+                'description' => '縁結びのご利益で人気の神社。',
+                'address' => '東京都千代田区富士見2-4-1',
+                'latitude' => 35.7003,
+                'longitude' => 139.7461,
+                'image_url' => null,
+            ]
+        );
     }
 }

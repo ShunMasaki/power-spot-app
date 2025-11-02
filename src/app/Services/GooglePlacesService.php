@@ -403,4 +403,27 @@ class GooglePlacesService
 
         return $nameMapping[$japaneseName] ?? $japaneseName;
     }
+
+    /**
+     * スポット名と座標から写真URLを取得（サムネイル用）
+     */
+    public function getPlacePhotoUrl($spotName, $latitude, $longitude, $maxWidth = 400, $maxHeight = 300)
+    {
+        try {
+            // Place IDを検索
+            $placeId = $this->findPlaceId($spotName, $latitude, $longitude);
+
+            if (!$placeId) {
+                return null;
+            }
+
+            // 写真を取得
+            $photos = $this->getPlacePhotos($placeId, 1); // 1枚だけ取得
+
+            return $photos[0] ?? null;
+        } catch (\Exception $e) {
+            Log::error('Get Place Photo URL Error: ' . $e->getMessage());
+            return null;
+        }
+    }
 }

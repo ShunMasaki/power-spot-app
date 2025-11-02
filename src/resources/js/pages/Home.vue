@@ -64,6 +64,7 @@
     <SpotDetailModal
         :isOpen="showSpotModal"
         :spotId="selectedSpotId"
+        :initialTab="initialTab"
         @close="closeSpotModal"
         @openReview="openReviewForm"
         @reopen="reopenSpotModal"
@@ -72,11 +73,12 @@
 
 <script setup>
 import { onMounted, ref, computed, watch, nextTick } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import axios from 'axios'
 import SpotDetailModal from '../components/SpotDetailModal.vue'
 
 const router = useRouter()
+const route = useRoute()
 const spots = ref([])
 const searchKeyword = ref('')
 const map = ref(null)
@@ -88,6 +90,7 @@ let updateMarkersTimeout = null
 // スポット詳細モーダル
 const showSpotModal = ref(false)
 const selectedSpotId = ref(null)
+const initialTab = ref('overview')
 
 // 地図の表示範囲内のスポット
 const visibleSpots = ref([])
@@ -102,21 +105,18 @@ const filteredSpots = computed(() => {
 
 // スポット詳細モーダルを開く
 const openSpotModal = (spotId) => {
-  console.log('openSpotModal - spotId:', spotId)
   selectedSpotId.value = spotId
   showSpotModal.value = true
 }
 
 // スポット詳細モーダルを閉じる
 const closeSpotModal = () => {
-  console.log('closeSpotModal called')
   showSpotModal.value = false
   selectedSpotId.value = null
 }
 
 // スポット詳細モーダルを再度開く（ログイン成功後）
 const reopenSpotModal = (spotId) => {
-  console.log('reopenSpotModal - spotId:', spotId)
   selectedSpotId.value = spotId
   showSpotModal.value = true
 }
@@ -124,7 +124,6 @@ const reopenSpotModal = (spotId) => {
 // レビューフォームを開く（将来の実装用）
 const openReviewForm = (spotId) => {
   // TODO: レビューフォーム実装時に追加
-  console.log('レビューフォーム開く:', spotId)
 }
 
 // スポット取得
@@ -348,7 +347,24 @@ const initMap = async () => {
         }
     }
 
+// Query parameter handling for spot modal
+watch(() => route.query.spotId, (spotId) => {
+    if (spotId) {
+        initialTab.value = route.query.tab || 'overview'
+        openSpotModal(parseInt(spotId))
+        router.replace({ path: '/' })
+    }
+})
+
 onMounted(async () => {
+    // Check if spotId is in query params on mount
+    if (route.query.spotId) {
+        await nextTick()
+        initialTab.value = route.query.tab || 'overview'
+        openSpotModal(parseInt(route.query.spotId))
+        router.replace({ path: '/' })
+    }
+
     // Google Maps APIの読み込み完了を待つ
     await new Promise((resolve) => {
         if (window.google && window.google.maps && window.google.maps.importLibrary) {

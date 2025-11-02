@@ -28,8 +28,18 @@
             </ul>
         </div>
 
-        <div class="mt-4" v-if="!showReviewForm">
+        <div class="mt-4">
             <button
+                @click="toggleVisit"
+                :class="[
+                    'px-4 py-2 rounded mr-2',
+                    isVisited ? 'bg-green-500 text-white' : 'bg-gray-300 text-gray-700'
+                ]"
+            >
+                {{ isVisited ? '✓ 訪問済み' : '行ったよ' }}
+            </button>
+            <button
+                v-if="!showReviewForm"
                 @click="handleReviewClick"
                 class="bg-blue-500 text-white px-4 py-2 rounded"
             >
@@ -86,6 +96,7 @@ const errorMessage = ref('')
 const auth = useAuthStore()
 const showReviewForm = ref(false)
 const setLoginSuccessCallback = inject('setLoginSuccessCallback')
+const isVisited = ref(false)
 
 const formatDate = (datetime) => {
     const date = new Date(datetime)
@@ -98,6 +109,36 @@ const fetchReviews = async () => {
         reviews.value = res.data
     } catch (error) {
         console.log('レビュー取得エラー:', error)
+    }
+}
+
+const checkVisitStatus = async () => {
+    if (!auth.isLoggedIn) return
+    try {
+        const res = await axios.get(`/api/spots/${route.params.id}/visit/check`)
+        isVisited.value = res.data.visited
+    } catch (error) {
+        console.log('訪問状態確認エラー:', error)
+    }
+}
+
+const toggleVisit = async () => {
+    if (!auth.isLoggedIn) {
+        auth.openLoginModal()
+        return
+    }
+
+    try {
+        if (isVisited.value) {
+            await axios.delete(`/api/spots/${route.params.id}/visit`)
+            isVisited.value = false
+        } else {
+            await axios.post(`/api/spots/${route.params.id}/visit`)
+            isVisited.value = true
+        }
+    } catch (error) {
+        console.log('訪問登録エラー:', error)
+        alert('エラーが発生しました')
     }
 }
 
@@ -152,6 +193,7 @@ try {
     const res = await axios.get(`/api/spots/${route.params.id}`)
     spot.value = res.data
     await fetchReviews()
+    await checkVisitStatus()
 } catch (error) {
     console.error('スポット取得エラー:', error)
 }

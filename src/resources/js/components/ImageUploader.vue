@@ -2,7 +2,6 @@
   <div class="image-uploader" :data-type="type">
     <div class="upload-section">
       <h4 class="upload-title">{{ title }}</h4>
-      <p class="upload-description">{{ description }}</p>
 
       <!-- アップロードエリア -->
       <div
@@ -85,7 +84,7 @@
             <span v-if="!isMobile">クリックまたはドラッグ&ドロップ</span>
             <span v-else>タップして画像を選択</span>
           </p>
-          <p class="upload-limit">最大{{ maxFiles }}枚まで ({{ remainingSlots }}枚追加可能)</p>
+          <p class="upload-limit">{{ remainingSlots }}枚追加可能</p>
 
           <!-- スマホ用カメラボタン -->
           <div v-if="isMobile && remainingSlots > 0" class="camera-actions">
@@ -128,6 +127,23 @@
               <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 削除確認モーダル -->
+    <div v-if="showDeleteConfirm" class="confirm-modal-overlay" @click="cancelDelete">
+      <div class="confirm-modal" @click.stop>
+        <div class="confirm-icon">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 9v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <h3 class="confirm-title">画像を削除しますか？</h3>
+        <p class="confirm-message">この操作は取り消せません。</p>
+        <div class="confirm-actions">
+          <button @click="cancelDelete" class="confirm-btn cancel-btn">キャンセル</button>
+          <button @click="confirmDelete" class="confirm-btn delete-btn">削除する</button>
         </div>
       </div>
     </div>
@@ -175,6 +191,8 @@ const isUploading = ref(false)
 const errorMessage = ref('')
 const fileInput = ref(null)
 const cameraInput = ref(null)
+const showDeleteConfirm = ref(false)
+const deleteTargetIndex = ref(null)
 
 // モバイルデバイス判定
 const isMobile = computed(() => {
@@ -323,10 +341,22 @@ const uploadSingleFile = async (file) => {
   emit('uploaded', newImage)
 }
 
-// 画像削除
-const removeImage = async (index) => {
+// 画像削除（確認モーダルを表示）
+const removeImage = (index) => {
   if (isUploading.value) return
+  deleteTargetIndex.value = index
+  showDeleteConfirm.value = true
+}
 
+// 削除をキャンセル
+const cancelDelete = () => {
+  showDeleteConfirm.value = false
+  deleteTargetIndex.value = null
+}
+
+// 削除を確定
+const confirmDelete = async () => {
+  const index = deleteTargetIndex.value
   const image = images.value[index]
 
   try {
@@ -340,6 +370,9 @@ const removeImage = async (index) => {
     console.error('Delete error:', error)
     errorMessage.value = '削除に失敗しました'
     emit('error', error)
+  } finally {
+    showDeleteConfirm.value = false
+    deleteTargetIndex.value = null
   }
 }
 </script>
@@ -370,7 +403,7 @@ const removeImage = async (index) => {
 }
 
 .upload-area {
-  border: 2px dashed #d1d5db;
+  border: none;
   border-radius: 12px;
   padding: 32px;
   text-align: center;
@@ -382,38 +415,28 @@ const removeImage = async (index) => {
   overflow: hidden;
 }
 
-/* タイプ別背景グラデーション */
+/* タイプ別背景色 */
 .image-uploader[data-type="omikuji"] .upload-area {
   background: #fffbeb;
-  border-color: #f59e0b;
 }
 
 .image-uploader[data-type="goshuin"] .upload-area {
   background: #fef2f2;
-  border-color: #dc2626;
-}
-
-.image-uploader[data-type="omikuji"] .upload-area:hover {
-  background: #fefbf0;
-  border-color: #d97706;
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(245, 158, 11, 0.15);
-}
-
-.image-uploader[data-type="goshuin"] .upload-area:hover {
-  background: #fef7f7;
-  border-color: #b91c1c;
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(220, 38, 38, 0.15);
 }
 
 .upload-area:hover {
-  border-color: #9ca3af;
-  background: #f3f4f6;
+  background: #fafbfc;
+}
+
+.image-uploader[data-type="omikuji"] .upload-area:hover {
+  background: #fffbf0;
+}
+
+.image-uploader[data-type="goshuin"] .upload-area:hover {
+  background: #fffafa;
 }
 
 .upload-area.drag-over {
-  border-color: #ec4899;
   background: #fdf2f8;
 }
 
@@ -424,14 +447,18 @@ const removeImage = async (index) => {
 
 .upload-area.mobile {
   cursor: pointer;
-  border-style: solid;
-  border-width: 2px;
-  border-color: #d1d5db;
 }
 
 .upload-area.mobile:hover {
-  border-color: #ec4899;
-  background: #fdf2f8;
+  background: #f9fafb;
+}
+
+.image-uploader[data-type="omikuji"] .upload-area.mobile:hover {
+  background: #fef3c7;
+}
+
+.image-uploader[data-type="goshuin"] .upload-area.mobile:hover {
+  background: #fee2e2;
 }
 
 /* アイコンコンテナ */
@@ -655,5 +682,83 @@ const removeImage = async (index) => {
 .remove-btn:disabled {
   cursor: not-allowed;
   opacity: 0.5;
+}
+
+/* 削除確認モーダル */
+.confirm-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: 20px;
+}
+
+.confirm-modal {
+  background: white;
+  border-radius: 16px;
+  padding: 32px;
+  max-width: 400px;
+  width: 100%;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  text-align: center;
+}
+
+.confirm-icon {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.confirm-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0 0 8px 0;
+}
+
+.confirm-message {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 0 0 24px 0;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.confirm-btn {
+  padding: 10px 24px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.cancel-btn {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.cancel-btn:hover {
+  background: #e5e7eb;
+}
+
+.delete-btn {
+  background: #ef4444;
+  color: white;
+}
+
+.delete-btn:hover {
+  background: #dc2626;
 }
 </style>

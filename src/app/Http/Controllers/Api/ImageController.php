@@ -33,12 +33,15 @@ class ImageController extends Controller
     }
 
     /**
-     * ユーザーの全画像一覧を取得（マイページ用）
+     * ユーザーの全画像一覧を取得（マイページ用・ページネーション付き）
      */
-    public function getAllUserImages(): JsonResponse
+    public function getAllUserImages(Request $request): JsonResponse
     {
         // ダミー認証（フロントエンドの認証状態に依存）
         $userId = 1; // ダミーID
+
+        $page = $request->input('page', 1);
+        $perPage = $request->input('per_page', 10);
 
         // おみくじ画像を取得（スポット情報も含める）
         $omikujiImages = OmikujiImage::with('spot')
@@ -81,7 +84,18 @@ class ImageController extends Controller
             ->sortByDesc('created_at')
             ->values();
 
-        return response()->json($allImages);
+        // 手動でページネーション
+        $total = $allImages->count();
+        $offset = ($page - 1) * $perPage;
+        $paginatedImages = $allImages->slice($offset, $perPage)->values();
+
+        return response()->json([
+            'current_page' => (int)$page,
+            'data' => $paginatedImages,
+            'per_page' => (int)$perPage,
+            'total' => $total,
+            'last_page' => (int)ceil($total / $perPage),
+        ]);
     }
 
     /**

@@ -48,13 +48,14 @@
 
 <script setup>
 import { ref, watch, provide, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import LoginModal from './components/LoginModal.vue'
 import SignupModal from './components/SignupModal.vue'
 
 const auth = useAuthStore()
 const route = useRoute()
+const router = useRouter()
 
 // アプリ起動時に認証状態を初期化
 onMounted(async () => {
@@ -83,9 +84,7 @@ const handleLoginSuccess = () => {
 }
 
 const goToMyPage = () => {
-    // マイページへの遷移（今後作成予定）
-    console.log('マイページへ遷移予定')
-    // router.push('/mypage') // マイページ作成後に有効化
+    router.push('/mypage')
 }
 
 // ログイン成功時のコールバックを設定する関数をprovide

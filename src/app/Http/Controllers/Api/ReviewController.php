@@ -5,18 +5,51 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreReviewRequest;
 use App\Models\Spot;
+use App\Models\Review;
+use App\Services\GooglePlacesService;
 use App\Rules\NoDuplicateReview;
 use App\Rules\NoExcessivePosting;
 use Illuminate\Http\Request;
 
 class ReviewController extends Controller
 {
+    protected $googlePlacesService;
+
+    public function __construct(GooglePlacesService $googlePlacesService)
+    {
+        $this->googlePlacesService = $googlePlacesService;
+    }
+
     public function index(Spot $spot)
     {
         $reviews = $spot->reviews()
             ->with('user')
             ->latest()
             ->get();
+
+        return response()->json($reviews);
+    }
+
+    /**
+     * ユーザーのレビュー一覧を取得（ページネーション付き）
+     */
+    public function getUserReviews(Request $request)
+    {
+        // ダミー認証（フロントエンドの認証状態に依存）
+        $userId = 1; // ダミーID
+
+        $perPage = $request->input('per_page', 10);
+
+        $reviews = Review::where('user_id', $userId)
+            ->with(['spot.spotBenefits.benefitType'])
+            ->latest()
+            ->paginate($perPage);
+
+        // サムネイル画像を取得
+        $reviews->getCollection()->transform(function ($review) {
+            $review->thumbnail_image = $this->getThumbnailImage($review->spot);
+            return $review;
+        });
 
         return response()->json($reviews);
     }
@@ -52,5 +85,21 @@ class ReviewController extends Controller
         ]);
 
         return response()->json($review, 201);
+    }
+
+    /**
+     * Google Places APIからサムネイル画像を取得
+     */
+    private function getThumbnailImage($spot): ?string
+    {
+        if (!$spot) {
+            return null;
+        }
+
+        return $this->googlePlacesService->getPlacePhotoUrl(
+            $spot->name,
+            $spot->latitude,
+            $spot->longitude
+        );
     }
 }

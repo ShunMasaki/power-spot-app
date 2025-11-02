@@ -3,13 +3,13 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Favorite;
+use App\Models\Visit;
 use App\Models\Spot;
 use App\Services\GooglePlacesService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 
-class FavoriteController extends Controller
+class VisitController extends Controller
 {
     protected $googlePlacesService;
 
@@ -19,7 +19,7 @@ class FavoriteController extends Controller
     }
 
     /**
-     * ユーザーのお気に入り一覧を取得（ページネーション付き）
+     * ユーザーの訪問履歴を取得（ページネーション付き）
      */
     public function index(Request $request): JsonResponse
     {
@@ -28,32 +28,22 @@ class FavoriteController extends Controller
 
         $perPage = $request->input('per_page', 10);
 
-        $favorites = Favorite::where('user_id', $userId)
+        $visits = Visit::where('user_id', $userId)
             ->with(['spot.spotBenefits.benefitType'])
-            ->latest()
+            ->orderBy('visited_at', 'desc')
             ->paginate($perPage);
 
         // サムネイル画像を取得
-        $favorites->getCollection()->transform(function ($favorite) {
-            $favorite->thumbnail_image = $this->getThumbnailImage($favorite->spot);
-
-            // ご利益のラベルを取得
-            if ($favorite->spot && $favorite->spot->spotBenefits) {
-                $favorite->benefits = $favorite->spot->spotBenefits->map(function ($spotBenefit) {
-                    return $spotBenefit->benefitType->label ?? $spotBenefit->benefitType->name;
-                })->toArray();
-            } else {
-                $favorite->benefits = [];
-            }
-
-            return $favorite;
+        $visits->getCollection()->transform(function ($visit) {
+            $visit->thumbnail_image = $this->getThumbnailImage($visit->spot);
+            return $visit;
         });
 
-        return response()->json($favorites);
+        return response()->json($visits);
     }
 
     /**
-     * お気に入り登録
+     * 訪問済みとしてマーク
      */
     public function store(Request $request, $spotId): JsonResponse
     {
@@ -62,58 +52,59 @@ class FavoriteController extends Controller
 
         $spot = Spot::findOrFail($spotId);
 
-        // 既にお気に入りに登録されているかチェック
-        $existingFavorite = Favorite::where('user_id', $userId)
+        // 既に訪問済みかチェック
+        $existingVisit = Visit::where('user_id', $userId)
             ->where('spot_id', $spotId)
             ->first();
 
-        if ($existingFavorite) {
-            return response()->json(['message' => 'Already favorited'], 200);
+        if ($existingVisit) {
+            return response()->json(['message' => 'Already visited'], 200);
         }
 
-        // お気に入り登録
-        Favorite::create([
+        // 訪問履歴を作成
+        Visit::create([
             'user_id' => $userId,
             'spot_id' => $spotId,
+            'visited_at' => now(),
         ]);
 
-        return response()->json(['message' => 'Added to favorites'], 201);
+        return response()->json(['message' => 'Marked as visited'], 201);
     }
 
     /**
-     * お気に入り削除
+     * 訪問済み解除
      */
     public function destroy(Request $request, $spotId): JsonResponse
     {
         // ダミー認証（フロントエンドの認証状態に依存）
         $userId = 1; // ダミーID
 
-        $favorite = Favorite::where('user_id', $userId)
+        $visit = Visit::where('user_id', $userId)
             ->where('spot_id', $spotId)
             ->first();
 
-        if (!$favorite) {
-            return response()->json(['error' => 'Favorite not found'], 404);
+        if (!$visit) {
+            return response()->json(['error' => 'Visit not found'], 404);
         }
 
-        $favorite->delete();
+        $visit->delete();
 
-        return response()->json(['message' => 'Removed from favorites'], 200);
+        return response()->json(['message' => 'Visit removed'], 200);
     }
 
     /**
-     * お気に入り状態をチェック
+     * 訪問状態をチェック
      */
     public function check(Request $request, $spotId): JsonResponse
     {
         // ダミー認証（フロントエンドの認証状態に依存）
         $userId = 1; // ダミーID
 
-        $isFavorited = Favorite::where('user_id', $userId)
+        $isVisited = Visit::where('user_id', $userId)
             ->where('spot_id', $spotId)
             ->exists();
 
-        return response()->json(['is_favorited' => $isFavorited], 200);
+        return response()->json(['is_visited' => $isVisited], 200);
     }
 
     /**

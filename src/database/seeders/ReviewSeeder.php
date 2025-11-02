@@ -17,6 +17,7 @@ class ReviewSeeder extends Seeder
             'name' => 'テスト太郎',
             'email' => 'test@example.com',
             'cognito_sub' => \Str::uuid(),
+            'nickname' => 'パワスポ太郎',
         ]);
 
         $spot = Spot::first() ?? Spot::factory()->create([
