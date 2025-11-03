@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             BenefitTypeSeeder::class,
             SpotSeeder::class,
+            AdditionalSpotsSeeder::class,
             SpotBenefitSeeder::class,
             ReviewSeeder::class,
         ]);

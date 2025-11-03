@@ -160,6 +160,11 @@ class GooglePlacesService
             return ['定休日'];
         }
 
+        // "Open 24 hours" の場合
+        if (stripos($hoursText, 'open 24 hours') !== false) {
+            return ['24時間営業'];
+        }
+
         return [$hoursText];
     }
 

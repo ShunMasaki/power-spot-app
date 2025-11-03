@@ -589,7 +589,7 @@ const getRouteUrl = () => {
 
   const destination = `${spot.value.latitude},${spot.value.longitude}`
 
-  return `https://www.google.com/maps/dir/?api=1&destination=${destination}&destination_place_id=&travelmode=driving`
+  return `https://www.google.com/maps/dir/?api=1&destination=${destination}&destination_place_id=&travelmode=transit`
 }
 
 // スマホでGoogle Mapsアプリを優先で開く
@@ -603,8 +603,8 @@ const openRouteInMaps = (event) => {
   const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
 
   if (isMobile) {
-    const appUrl = `comgooglemaps://?daddr=${destination}&directionsmode=driving`
-    const webUrl = `https://www.google.com/maps/dir/?api=1&destination=${destination}&travelmode=driving`
+    const appUrl = `comgooglemaps://?daddr=${destination}&directionsmode=transit`
+    const webUrl = `https://www.google.com/maps/dir/?api=1&destination=${destination}&travelmode=transit`
 
     const testLink = document.createElement('a')
     testLink.href = appUrl

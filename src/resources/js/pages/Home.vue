@@ -25,7 +25,7 @@
         <!-- スポット一覧（マップ上にオーバーレイ） -->
         <div class="spots-overlay" v-if="spots.length > 0">
             <div class="spots-header">
-                <h3>パワースポット一覧 ({{ filteredSpots.length }}/{{ visibleSpots.length }})</h3>
+                <h3>パワースポット一覧 ({{ totalVisibleCount }}件)</h3>
                 <button @click="showSpotsList = !showSpotsList" class="toggle-btn">
                     {{ showSpotsList ? '閉じる' : '開く' }}
                 </button>
@@ -76,6 +76,7 @@ import { onMounted, ref, computed, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import axios from 'axios'
 import SpotDetailModal from '../components/SpotDetailModal.vue'
+import { MarkerClusterer } from '@googlemaps/markerclusterer'
 
 const router = useRouter()
 const route = useRoute()
@@ -95,12 +96,52 @@ const initialTab = ref('overview')
 // 地図の表示範囲内のスポット
 const visibleSpots = ref([])
 
-// 絞り込み済みスポット一覧（地図表示範囲内 + 検索キーワード）
+// 地図の中心座標
+const mapCenter = ref({ lat: 35.6812, lng: 139.7671 })
+
+// 2点間の距離を計算（Haversine formula）
+const calculateDistance = (lat1, lon1, lat2, lon2) => {
+  const R = 6371 // 地球の半径（km）
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLon = (lon2 - lon1) * Math.PI / 180
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  return R * c
+}
+
+// （削除）行政区分抽出ロジックは使用しない
+
+// 絞り込み済みスポット一覧（地図表示範囲内 + 検索キーワード + 距離順50件）
 const filteredSpots = computed(() => {
   // 地図表示範囲内のスポットのみを使用
-  return visibleSpots.value.filter(spot =>
+  let spots = visibleSpots.value.filter(spot =>
     spot.name.includes(searchKeyword.value)
   )
+
+  // 地図の中心からの距離で並び替え
+  spots = spots.map(spot => ({
+    ...spot,
+    distance: calculateDistance(
+      mapCenter.value.lat,
+      mapCenter.value.lng,
+      spot.latitude,
+      spot.longitude
+    )
+  })).sort((a, b) => a.distance - b.distance)
+
+  // 最大50件まで
+  return spots.slice(0, 50)
+})
+
+// 全体の件数（50件以上なら「50+」表示用）
+const totalVisibleCount = computed(() => {
+  const total = visibleSpots.value.filter(spot =>
+    spot.name.includes(searchKeyword.value)
+  ).length
+  return total > 50 ? '50+' : total
 })
 
 // スポット詳細モーダルを開く
@@ -144,6 +185,15 @@ const updateVisibleSpots = () => {
     const bounds = map.value.getBounds()
     if (!bounds) return
 
+    // 地図の中心座標を更新
+    const center = map.value.getCenter()
+    if (center) {
+        mapCenter.value = {
+            lat: center.lat(),
+            lng: center.lng()
+        }
+    }
+
     visibleSpots.value = spots.value.filter(spot => {
         const position = new google.maps.LatLng(parseFloat(spot.latitude), parseFloat(spot.longitude))
         return bounds.contains(position)
@@ -160,7 +210,6 @@ const updateVisibleSpots = () => {
 
         // マーカー生成・更新
         const updateMarkers = () => {
-            // 既存のマーカーをすべて削除
             markers.value.forEach(marker => {
                 marker.setMap(null)
             })
@@ -168,35 +217,30 @@ const updateVisibleSpots = () => {
 
             if (!map.value) return
 
-            // 地図の表示範囲内のスポットを直接計算
             const bounds = map.value.getBounds()
             if (!bounds) return
 
-            // 表示範囲内のスポットを直接フィルタリング
             const visibleSpotsList = spots.value.filter(spot => {
                 const position = new google.maps.LatLng(parseFloat(spot.latitude), parseFloat(spot.longitude))
                 return bounds.contains(position)
             })
 
-            // 検索キーワードで絞り込み
             const spotsToDisplay = visibleSpotsList.filter(spot =>
                 spot.name.includes(searchKeyword.value)
             )
 
-            // 新しいマーカーを作成
             spotsToDisplay.forEach((spot) => {
                 const marker = new google.maps.Marker({
                     position: { lat: parseFloat(spot.latitude), lng: parseFloat(spot.longitude) },
-                    map: map.value,
                     title: spot.name,
                     icon: {
                         url: '/spot.png',
                         scaledSize: new google.maps.Size(30, 30),
                         anchor: new google.maps.Point(15, 30)
-                    }
+                    },
+                    map: map.value
                 })
 
-                // マーカーにspotIdを保存
                 marker.spotId = spot.id
 
                 marker.addListener('click', () => {
@@ -237,6 +281,8 @@ const initMap = async () => {
     const mapOptions = {
         center: center,
         zoom: 12,
+        minZoom: 5, // 最小ズームレベル（日本全体が見える程度）
+        maxZoom: 18, // 最大ズームレベル
         streetViewControl: false, // ストリートビューコントロールを無効化
         fullscreenControl: false, // フルスクリーンコントロールを無効化
         mapTypeControl: false, // マップタイプコントロールを無効化
@@ -266,6 +312,8 @@ const initMap = async () => {
             updateVisibleSpots()
         }, 300) // 300ms後に実行
     })
+
+    // （削除）zoom_changedの個別監視は行わない（従来挙動に戻す）
 }
 
     // 検索キーワードが変更されたときにマーカーを更新（デバウンス）
