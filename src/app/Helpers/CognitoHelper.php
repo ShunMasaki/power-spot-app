@@ -21,11 +21,13 @@ class CognitoHelper
         try {
             $token = self::getTokenFromRequest($request);
             if (!$token) {
+                Log::warning('Cognito認証: トークンが見つかりません');
                 return null;
             }
 
             $cognitoSub = self::getCognitoSubFromToken($token);
             if (!$cognitoSub) {
+                Log::warning('Cognito認証: cognito_subが取得できませんでした');
                 return null;
             }
 
@@ -33,15 +35,19 @@ class CognitoHelper
             $user = User::where('cognito_sub', $cognitoSub)->first();
             if (!$user) {
                 // ユーザーが存在しない場合は作成（初回ログイン時）
+                Log::info('Cognito認証: 新規ユーザーを作成します', ['cognito_sub' => $cognitoSub]);
                 $user = self::createUserFromToken($token, $cognitoSub);
             } else {
                 // 既存ユーザーの場合、トークンから最新の情報を更新
+                Log::info('Cognito認証: 既存ユーザーを更新します', ['user_id' => $user->id, 'nickname' => $user->nickname]);
                 self::updateUserFromToken($user, $token);
+                // 更新後のユーザー情報を再取得
+                $user->refresh();
             }
 
             return $user ? $user->id : null;
         } catch (\Exception $e) {
-            Log::error('Cognito認証エラー: ' . $e->getMessage());
+            Log::error('Cognito認証エラー: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
             return null;
         }
     }
@@ -148,15 +154,26 @@ class CognitoHelper
             // ニックネームを取得（カスタム属性または通常の属性から）
             $nickname = $payload['custom:nickname'] ?? $payload['nickname'] ?? null;
             
+            // nameを取得
+            $name = $payload['name'] ?? $user->name ?? $user->email;
+            
             // ニックネームが取得できない場合は、nameをフォールバックとして使用
             if (!$nickname) {
-                $name = $payload['name'] ?? $user->name;
                 $nickname = $name;
             }
             
-            // ニックネームが存在し、現在の値と異なる場合は更新
+            // nameも更新（トークンから取得できる場合）
+            if ($name && $user->name !== $name) {
+                $user->name = $name;
+            }
+            
+            // ニックネームが存在し、現在の値と異なる場合、またはnullの場合は更新
             if ($nickname && ($user->nickname !== $nickname || !$user->nickname)) {
                 $user->nickname = $nickname;
+            }
+            
+            // 変更があれば保存
+            if ($user->isDirty()) {
                 $user->save();
             }
         } catch (\Exception $e) {

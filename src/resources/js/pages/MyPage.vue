@@ -393,6 +393,10 @@ const loadStats = async () => {
     stats.value = response.data;
   } catch (error) {
     console.error('統計情報の読み込みに失敗しました:', error);
+    // 認証エラーの場合はログアウト状態にする
+    if (error.response?.status === 401) {
+      auth.isLoggedIn = false;
+    }
   }
 };
 
