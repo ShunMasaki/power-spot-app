@@ -20,7 +20,13 @@ class DatabaseSeeder extends Seeder
             SpotSeeder::class,
             AdditionalSpotsSeeder::class,
             SpotBenefitSeeder::class,
-            ReviewSeeder::class,
         ]);
+
+        // 本番環境ではReviewSeederをスキップ（Fakerが必要なため）
+        if (app()->environment() !== 'production') {
+            $this->call([
+                ReviewSeeder::class,
+            ]);
+        }
     }
 }
