@@ -147,9 +147,15 @@ class CognitoHelper
 
             // ニックネームを取得（カスタム属性または通常の属性から）
             $nickname = $payload['custom:nickname'] ?? $payload['nickname'] ?? null;
-
+            
+            // ニックネームが取得できない場合は、nameをフォールバックとして使用
+            if (!$nickname) {
+                $name = $payload['name'] ?? $user->name;
+                $nickname = $name;
+            }
+            
             // ニックネームが存在し、現在の値と異なる場合は更新
-            if ($nickname && $user->nickname !== $nickname) {
+            if ($nickname && ($user->nickname !== $nickname || !$user->nickname)) {
                 $user->nickname = $nickname;
                 $user->save();
             }

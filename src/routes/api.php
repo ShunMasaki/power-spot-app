@@ -45,4 +45,21 @@ Route::middleware('api')->group(function () {
     // ユーザー関連のルート
     Route::get('/user/stats', [UserController::class, 'getStats']); // マイページ用
     Route::put('/user/profile', [UserController::class, 'updateProfile']);
+
+    // 一時的なレビュー削除エンドポイント（削除後は削除してください）
+    Route::delete('/admin/reviews/{review}', function ($reviewId) {
+        // セキュリティキーをチェック（本番環境では環境変数から取得）
+        $key = request()->header('X-Admin-Key');
+        if ($key !== env('ADMIN_DELETE_KEY', 'temp_delete_key_2024')) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        $review = \App\Models\Review::find($reviewId);
+        if (!$review) {
+            return response()->json(['error' => 'Review not found'], 404);
+        }
+
+        $review->delete();
+        return response()->json(['message' => 'Review deleted successfully'], 200);
+    });
 });
