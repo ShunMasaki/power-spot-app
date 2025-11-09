@@ -145,7 +145,7 @@ const handleSignUp = async () => {
     error.value = ''
     loading.value = true
     try {
-        await signUp({
+        const result = await signUp({
             username: email.value.trim(),
             password: password.value,
             options: {
@@ -155,9 +155,23 @@ const handleSignUp = async () => {
                 },
             },
         })
-        confirmationStep.value = true
-    } catch (error) {
-        error.value = toFriendlyError(error)
+
+        // メール確認が必要な場合
+        if (result.nextStep?.signUpStep === 'CONFIRM_SIGN_UP') {
+            confirmationStep.value = true
+        } else {
+            // メール確認が不要な場合、直接ログイン
+            const { isSignedIn } = await signIn({
+                username: email.value.trim(),
+                password: password.value
+            })
+            if (isSignedIn) {
+                await auth.initializeAuth()
+                emit('signup-success')
+            }
+        }
+    } catch (err) {
+        error.value = toFriendlyError(err)
     } finally {
         loading.value = false
     }
@@ -182,8 +196,8 @@ const handleConfirmation = async () => {
             await auth.initializeAuth()
             emit('signup-success')
         }
-    } catch (error) {
-        error.value = toFriendlyError(error)
+    } catch (err) {
+        error.value = toFriendlyError(err)
     } finally {
         loading.value = false
     }
@@ -195,21 +209,61 @@ const resend = async () => {
     resending.value = true
     try {
         await resendSignUpCode({ username: email.value.trim() })
-    } catch (error) {
-        error.value = toFriendlyError(error)
+    } catch (err) {
+        error.value = toFriendlyError(err)
     } finally {
         resending.value = false
     }
 }
 
-const toFriendlyError = (error) => {
-    const name = error.name || ''
-    if (name === 'UsernameExistsException') return 'このメールアドレスは既に登録されています。'
-    if (name === 'InvalidPasswordException') return 'パスワードポリシーを満たしていません。もう一度ご確認ください。'
-    if (name === 'CodeMismatchException') return '確認コードが正しくありません。'
-    if (name === 'ExpiredCodeException') return '確認コードの有効期限が切れています。再送してください。'
-    if (name === 'LimitExceededException') return '試行回数の上限に達しました。しばらくしてからお試しください。'
-    return error?.message || 'エラーが発生しました。時間をおいて再度お試しください。'
+const toFriendlyError = (err) => {
+    // エラーオブジェクトの構造を確認
+    const errorName = err?.name || err?.__type || ''
+    const errorMessage = err?.message || err?.toString() || ''
+    const errorString = JSON.stringify(err) || ''
+
+    // エラーメッセージに含まれるキーワードで判定
+    if (errorName === 'UsernameExistsException' ||
+        errorMessage.includes('already exists') ||
+        errorMessage.includes('既に存在') ||
+        errorMessage.includes('User already exists') ||
+        errorString.includes('UsernameExistsException')) {
+        return 'このメールアドレスは既に登録されています。'
+    }
+    if (errorName === 'InvalidPasswordException' || errorMessage.includes('password')) {
+        // エラーメッセージから具体的な要件を抽出
+        const requirements = []
+
+        // 最小文字数のチェック
+        if (errorMessage.includes('length') || errorMessage.includes('8') || errorMessage.includes('characters')) {
+            requirements.push('8文字以上')
+        }
+
+        // 数字のチェック
+        if (errorMessage.includes('number') || errorMessage.includes('digit') || errorMessage.includes('numeric')) {
+            requirements.push('数字を含む')
+        }
+
+        // 具体的な要件が見つかった場合
+        if (requirements.length > 0) {
+            return `パスワードは以下の要件を満たす必要があります：${requirements.join('、')}`
+        }
+
+        // デフォルトのメッセージ（一般的な要件を表示）
+        return 'パスワードは8文字以上で、数字を含む必要があります。'
+    }
+    if (errorName === 'CodeMismatchException' || errorMessage.includes('code')) {
+        return '確認コードが正しくありません。'
+    }
+    if (errorName === 'ExpiredCodeException' || errorMessage.includes('expired')) {
+        return '確認コードの有効期限が切れています。再送してください。'
+    }
+    if (errorName === 'LimitExceededException' || errorMessage.includes('limit')) {
+        return '試行回数の上限に達しました。しばらくしてからお試しください。'
+    }
+
+    // デフォルトエラーメッセージ
+    return errorMessage || 'エラーが発生しました。時間をおいて再度お試しください。'
 }
 </script>
 
