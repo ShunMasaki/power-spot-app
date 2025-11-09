@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Helpers\CognitoHelper;
 use App\Http\Requests\StoreReviewRequest;
 use App\Models\Spot;
 use App\Models\Review;
@@ -35,8 +36,10 @@ class ReviewController extends Controller
      */
     public function getUserReviews(Request $request)
     {
-        // ダミー認証（フロントエンドの認証状態に依存）
-        $userId = 1; // ダミーID
+        $userId = CognitoHelper::getUserIdFromRequest($request);
+        if (!$userId) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
 
         $perPage = $request->input('per_page', 10);
 
@@ -56,7 +59,10 @@ class ReviewController extends Controller
 
     public function store(Request $request, Spot $spot)
     {
-        $userId = 1; // ダミーID (本来は auth()->id())
+        $userId = CognitoHelper::getUserIdFromRequest($request);
+        if (!$userId) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
 
         // カスタムバリデーションを実行
         $request->validate([

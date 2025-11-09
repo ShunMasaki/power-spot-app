@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Helpers\CognitoHelper;
 use App\Models\Spot;
 use App\Models\OmikujiImage;
 use App\Models\GoshuinImage;
@@ -37,8 +38,10 @@ class ImageController extends Controller
      */
     public function getAllUserImages(Request $request): JsonResponse
     {
-        // ダミー認証（フロントエンドの認証状態に依存）
-        $userId = 1; // ダミーID
+        $userId = CognitoHelper::getUserIdFromRequest($request);
+        if (!$userId) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
 
         $page = $request->input('page', 1);
         $perPage = $request->input('per_page', 10);
@@ -103,8 +106,10 @@ class ImageController extends Controller
      */
     public function getUserImages($spotId): JsonResponse
     {
-        // ダミー認証（フロントエンドの認証状態に依存）
-        $userId = 1; // ダミーID
+        $userId = CognitoHelper::getUserIdFromRequest($request);
+        if (!$userId) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
 
         $spot = Spot::findOrFail($spotId);
 
@@ -147,8 +152,10 @@ class ImageController extends Controller
      */
     public function store(Request $request, $spotId): JsonResponse
     {
-        // ダミー認証（フロントエンドの認証状態に依存）
-        $userId = 1; // ダミーID
+        $userId = CognitoHelper::getUserIdFromRequest($request);
+        if (!$userId) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
 
         $spot = Spot::findOrFail($spotId);
 
@@ -234,8 +241,10 @@ class ImageController extends Controller
      */
     public function destroy(Request $request, $spotId, $imageId): JsonResponse
     {
-        // ダミー認証（フロントエンドの認証状態に依存）
-        $userId = 1; // ダミーID
+        $userId = CognitoHelper::getUserIdFromRequest($request);
+        if (!$userId) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
 
         try {
             // おみくじ画像から検索

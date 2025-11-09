@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Helpers\CognitoHelper;
 use App\Models\User;
 use App\Models\Visit;
 use App\Models\Favorite;
@@ -19,8 +20,10 @@ class UserController extends Controller
      */
     public function getStats(Request $request): JsonResponse
     {
-        // ダミー認証（フロントエンドの認証状態に依存）
-        $userId = 1; // ダミーID
+        $userId = CognitoHelper::getUserIdFromRequest($request);
+        if (!$userId) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
 
         $user = User::findOrFail($userId);
 
@@ -47,8 +50,10 @@ class UserController extends Controller
      */
     public function updateProfile(Request $request): JsonResponse
     {
-        // ダミー認証（フロントエンドの認証状態に依存）
-        $userId = 1; // ダミーID
+        $userId = CognitoHelper::getUserIdFromRequest($request);
+        if (!$userId) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
 
         $user = User::findOrFail($userId);
 

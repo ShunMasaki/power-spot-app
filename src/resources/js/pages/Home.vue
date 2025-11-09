@@ -76,7 +76,6 @@ import { onMounted, ref, computed, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import axios from 'axios'
 import SpotDetailModal from '../components/SpotDetailModal.vue'
-import { MarkerClusterer } from '@googlemaps/markerclusterer'
 
 const router = useRouter()
 const route = useRoute()
@@ -112,7 +111,19 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
   return R * c
 }
 
-// （削除）行政区分抽出ロジックは使用しない
+// 住所から都道府県を抽出
+const extractPrefecture = (address) => {
+  if (!address) return null
+  const match = address.match(/^(東京都|北海道|.+?[都道府県])/)
+  return match ? match[1] : null
+}
+
+// 東京都の住所から区を抽出
+const extractWard = (address) => {
+  if (!address || !address.startsWith('東京都')) return null
+  const match = address.match(/^東京都(.+?区)/)
+  return match ? match[1] : null
+}
 
 // 絞り込み済みスポット一覧（地図表示範囲内 + 検索キーワード + 距離順50件）
 const filteredSpots = computed(() => {
@@ -210,6 +221,7 @@ const updateVisibleSpots = () => {
 
         // マーカー生成・更新
         const updateMarkers = () => {
+            // 既存のマーカーをクリア
             markers.value.forEach(marker => {
                 marker.setMap(null)
             })
@@ -217,18 +229,12 @@ const updateVisibleSpots = () => {
 
             if (!map.value) return
 
-            const bounds = map.value.getBounds()
-            if (!bounds) return
-
-            const visibleSpotsList = spots.value.filter(spot => {
-                const position = new google.maps.LatLng(parseFloat(spot.latitude), parseFloat(spot.longitude))
-                return bounds.contains(position)
-            })
-
-            const spotsToDisplay = visibleSpotsList.filter(spot =>
+            // 検索キーワードでフィルタリング
+            const spotsToDisplay = spots.value.filter(spot =>
                 spot.name.includes(searchKeyword.value)
             )
 
+            // 個別マーカーを表示
             spotsToDisplay.forEach((spot) => {
                 const marker = new google.maps.Marker({
                     position: { lat: parseFloat(spot.latitude), lng: parseFloat(spot.longitude) },

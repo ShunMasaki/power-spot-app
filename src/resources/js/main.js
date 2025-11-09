@@ -11,7 +11,8 @@ import { fetchAuthSession } from 'aws-amplify/auth'
 
 Amplify.configure(awsconfig)
 
-axios.defaults.baseURL = 'http://localhost:8080'
+// 環境変数からAPIのベースURLを取得（本番環境ではAPP_URLを使用）
+axios.defaults.baseURL = import.meta.env.VITE_API_URL || window.location.origin
 
 // リクエストインターセプターで認証トークンを自動追加
 axios.interceptors.request.use(async (config) => {

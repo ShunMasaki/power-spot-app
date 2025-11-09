@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Helpers\CognitoHelper;
 use App\Models\Favorite;
 use App\Models\Spot;
 use App\Services\GooglePlacesService;
@@ -23,8 +24,10 @@ class FavoriteController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        // ダミー認証（フロントエンドの認証状態に依存）
-        $userId = 1; // ダミーID
+        $userId = CognitoHelper::getUserIdFromRequest($request);
+        if (!$userId) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
 
         $perPage = $request->input('per_page', 10);
 
@@ -57,8 +60,10 @@ class FavoriteController extends Controller
      */
     public function store(Request $request, $spotId): JsonResponse
     {
-        // ダミー認証（フロントエンドの認証状態に依存）
-        $userId = 1; // ダミーID
+        $userId = CognitoHelper::getUserIdFromRequest($request);
+        if (!$userId) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
 
         $spot = Spot::findOrFail($spotId);
 
@@ -85,8 +90,10 @@ class FavoriteController extends Controller
      */
     public function destroy(Request $request, $spotId): JsonResponse
     {
-        // ダミー認証（フロントエンドの認証状態に依存）
-        $userId = 1; // ダミーID
+        $userId = CognitoHelper::getUserIdFromRequest($request);
+        if (!$userId) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
 
         $favorite = Favorite::where('user_id', $userId)
             ->where('spot_id', $spotId)
@@ -106,8 +113,10 @@ class FavoriteController extends Controller
      */
     public function check(Request $request, $spotId): JsonResponse
     {
-        // ダミー認証（フロントエンドの認証状態に依存）
-        $userId = 1; // ダミーID
+        $userId = CognitoHelper::getUserIdFromRequest($request);
+        if (!$userId) {
+            return response()->json(['is_favorited' => false], 200);
+        }
 
         $isFavorited = Favorite::where('user_id', $userId)
             ->where('spot_id', $spotId)
