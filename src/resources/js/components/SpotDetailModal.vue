@@ -190,7 +190,7 @@
                     <div v-for="review in paginatedReviews" :key="review.id" class="review-item">
                       <div class="review-header">
                         <div class="reviewer-info">
-                          <span class="reviewer-name">{{ review.user?.name || '匿名ユーザー' }}</span>
+                          <span class="reviewer-name">{{ review.user?.nickname || review.user?.name || '匿名ユーザー' }}</span>
                           <div class="review-stars">
                             <span v-for="i in 5" :key="i" class="star" :class="{ filled: i <= review.rating }">★</span>
                           </div>

@@ -34,6 +34,9 @@ class CognitoHelper
             if (!$user) {
                 // ユーザーが存在しない場合は作成（初回ログイン時）
                 $user = self::createUserFromToken($token, $cognitoSub);
+            } else {
+                // 既存ユーザーの場合、トークンから最新の情報を更新
+                self::updateUserFromToken($user, $token);
             }
 
             return $user ? $user->id : null;
@@ -108,18 +111,50 @@ class CognitoHelper
             $email = $payload['email'] ?? null;
             $name = $payload['name'] ?? $email;
 
+            // ニックネームを取得（カスタム属性または通常の属性から）
+            $nickname = $payload['custom:nickname'] ?? $payload['nickname'] ?? $name;
+
             // ユーザーを作成
             $user = User::create([
                 'cognito_sub' => $cognitoSub,
                 'email' => $email,
                 'name' => $name,
-                'nickname' => $payload['nickname'] ?? $name,
+                'nickname' => $nickname,
             ]);
 
             return $user;
         } catch (\Exception $e) {
             Log::error('ユーザー作成エラー: ' . $e->getMessage());
             return null;
+        }
+    }
+
+    /**
+     * 既存ユーザーの情報をトークンから更新
+     */
+    private static function updateUserFromToken(User $user, string $token): void
+    {
+        try {
+            $parts = explode('.', $token);
+            if (count($parts) !== 3) {
+                return;
+            }
+
+            $payload = json_decode(base64_decode(strtr($parts[1], '-_', '+/')), true);
+            if (!$payload) {
+                return;
+            }
+
+            // ニックネームを取得（カスタム属性または通常の属性から）
+            $nickname = $payload['custom:nickname'] ?? $payload['nickname'] ?? null;
+
+            // ニックネームが存在し、現在の値と異なる場合は更新
+            if ($nickname && $user->nickname !== $nickname) {
+                $user->nickname = $nickname;
+                $user->save();
+            }
+        } catch (\Exception $e) {
+            Log::error('ユーザー更新エラー: ' . $e->getMessage());
         }
     }
 }
