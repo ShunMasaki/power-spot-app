@@ -5,33 +5,50 @@
   <title>パワスポ！</title>
   @if(app()->environment('production'))
     @php
-      $manifestPath = public_path('build/manifest.json');
-      if (file_exists($manifestPath)) {
-        $manifestContent = file_get_contents($manifestPath);
-        $manifest = json_decode($manifestContent, true);
+      // まず実際に存在するファイルを探す
+      $buildDir = public_path('build/assets');
+      $appJs = null;
+      $appCssFiles = [];
 
-        // デバッグ用（本番環境では削除）
-        // \Log::info('Manifest content: ' . $manifestContent);
+      if (is_dir($buildDir)) {
+        // app-*.jsファイルを探す
+        $jsFiles = glob($buildDir . '/app-*.js');
+        if (!empty($jsFiles)) {
+          $appJs = 'assets/' . basename($jsFiles[0]);
+        }
 
-        $appEntry = $manifest['resources/js/app.js'] ?? null;
-        if ($appEntry) {
-          $appJs = $appEntry['file'] ?? null;
-          $appCssFiles = $appEntry['css'] ?? [];
-        } else {
-          // フォールバック: マニフェストの構造が異なる場合
-          $appJs = null;
-          $appCssFiles = [];
-          foreach ($manifest as $key => $value) {
-            if (strpos($key, 'resources/js/app.js') !== false || strpos($key, 'app.js') !== false) {
-              $appJs = $value['file'] ?? null;
-              $appCssFiles = $value['css'] ?? [];
-              break;
+        // app-*.cssファイルを探す
+        $cssFiles = glob($buildDir . '/app-*.css');
+        foreach ($cssFiles as $cssFile) {
+          $appCssFiles[] = 'assets/' . basename($cssFile);
+        }
+      }
+
+      // フォールバック: manifest.jsonから取得を試す
+      if (!$appJs) {
+        $manifestPath = public_path('build/manifest.json');
+        if (file_exists($manifestPath)) {
+          $manifestContent = file_get_contents($manifestPath);
+          $manifest = json_decode($manifestContent, true);
+
+          $appEntry = $manifest['resources/js/app.js'] ?? null;
+          if ($appEntry) {
+            $appJs = $appEntry['file'] ?? null;
+            if (empty($appCssFiles)) {
+              $appCssFiles = $appEntry['css'] ?? [];
+            }
+          } else {
+            foreach ($manifest as $key => $value) {
+              if (strpos($key, 'resources/js/app.js') !== false || strpos($key, 'app.js') !== false) {
+                $appJs = $value['file'] ?? null;
+                if (empty($appCssFiles)) {
+                  $appCssFiles = $value['css'] ?? [];
+                }
+                break;
+              }
             }
           }
         }
-      } else {
-        $appJs = null;
-        $appCssFiles = [];
       }
     @endphp
     @foreach($appCssFiles as $cssFile)

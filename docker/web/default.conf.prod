@@ -31,6 +31,8 @@ server {
         fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
         include fastcgi_params;
         fastcgi_param PATH_INFO $fastcgi_path_info;
+        # Authorizationヘッダーを明示的に転送
+        fastcgi_param HTTP_AUTHORIZATION $http_authorization;
     }
 
     location ~ /\.(?!well-known).* {
