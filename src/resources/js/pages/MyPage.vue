@@ -6,9 +6,6 @@
         <div class="prompt-icon">🔒</div>
         <h2>マイページを表示するにはログインしてください</h2>
         <p>ログインすると、お気に入りのスポットや訪問履歴を確認できます</p>
-        <button @click="auth.showAuthModal = true" class="login-btn">
-          ログイン / 新規登録
-        </button>
       </div>
     </div>
 
@@ -131,6 +128,11 @@
                 </p>
               </div>
             </div>
+            <div v-if="pagination.visits.hasMore" class="load-more-container">
+              <button @click="loadMoreData" class="load-more-btn" :disabled="loading">
+                {{ loading ? '読み込み中...' : 'もっと見る' }}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -175,6 +177,11 @@
                 </div>
               </div>
             </div>
+            <div v-if="pagination.favorites.hasMore" class="load-more-container">
+              <button @click="loadMoreData" class="load-more-btn" :disabled="loading">
+                {{ loading ? '読み込み中...' : 'もっと見る' }}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -209,6 +216,11 @@
                   {{ formatDate(review.created_at) }}
                 </p>
               </div>
+            </div>
+            <div v-if="pagination.reviews.hasMore" class="load-more-container">
+              <button @click="loadMoreData" class="load-more-btn" :disabled="loading">
+                {{ loading ? '読み込み中...' : 'もっと見る' }}
+              </button>
             </div>
           </div>
         </div>
@@ -257,6 +269,11 @@
                 <p class="image-spot-name" @click="openSpotDetail(image.spot_id)">{{ image.spot_name }}</p>
               </div>
             </div>
+          </div>
+          <div v-if="pagination.images.hasMore" class="load-more-container">
+            <button @click="loadMoreData" class="load-more-btn" :disabled="loading">
+              {{ loading ? '読み込み中...' : 'もっと見る' }}
+            </button>
           </div>
         </div>
       </div>
@@ -358,10 +375,6 @@ const initialLoaded = ref({
   images: false
 });
 
-// Scroll state
-const isScrolling = ref(false);
-let scrollTimeout = null;
-let lastScrollTop = 0;
 
 // Tabs configuration
 const tabs = [
@@ -410,7 +423,7 @@ const loadVisits = async (append = false) => {
     const response = await axios.get('/api/user/visits', {
       params: {
         page: pagination.value.visits.page,
-        per_page: 10
+        per_page: 20
       }
     });
 
@@ -443,7 +456,7 @@ const loadFavorites = async (append = false) => {
     const response = await axios.get('/api/user/favorites', {
       params: {
         page: pagination.value.favorites.page,
-        per_page: 10
+        per_page: 20
       }
     });
 
@@ -476,7 +489,7 @@ const loadReviews = async (append = false) => {
     const response = await axios.get('/api/user/reviews', {
       params: {
         page: pagination.value.reviews.page,
-        per_page: 10
+        per_page: 20
       }
     });
 
@@ -509,7 +522,7 @@ const loadImages = async (append = false) => {
     const response = await axios.get('/api/user/images', {
       params: {
         page: pagination.value.images.page,
-        per_page: 10
+        per_page: 20
       }
     });
 
@@ -578,33 +591,10 @@ const loadTabData = (tabId) => {
   }
 };
 
-const handleScroll = () => {
-  if (isScrolling.value || loading.value) return;
-
-  clearTimeout(scrollTimeout);
-
-  const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-  const scrollHeight = document.documentElement.scrollHeight;
-  const clientHeight = document.documentElement.clientHeight;
-
-  // Scrolling down and near bottom
-  if (scrollTop > lastScrollTop && scrollTop + clientHeight >= scrollHeight - 300) {
-    isScrolling.value = true;
-    loadMoreData();
-  }
-
-  lastScrollTop = scrollTop;
-
-  scrollTimeout = setTimeout(() => {
-    isScrolling.value = false;
-  }, 200);
-};
-
 const loadMoreData = () => {
   const currentPagination = pagination.value[activeTab.value];
 
-  if (!currentPagination.hasMore) {
-    isScrolling.value = false;
+  if (!currentPagination.hasMore || loading.value) {
     return;
   }
 
@@ -624,10 +614,6 @@ const loadMoreData = () => {
       loadImages(true);
       break;
   }
-
-  setTimeout(() => {
-    isScrolling.value = false;
-  }, 500);
 };
 
 const formatDate = (dateString) => {
@@ -692,12 +678,6 @@ onMounted(() => {
     loadStats();
     loadTabData(activeTab.value);
   }
-
-  window.addEventListener('scroll', handleScroll);
-});
-
-onUnmounted(() => {
-  window.removeEventListener('scroll', handleScroll);
 });
 </script>
 
@@ -743,23 +723,6 @@ onUnmounted(() => {
   line-height: 1.6;
 }
 
-.login-btn {
-  background: linear-gradient(135deg, #f472b6 0%, #db2777 100%);
-  color: white;
-  border: none;
-  padding: 16px 48px;
-  border-radius: 12px;
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 12px rgba(244, 114, 182, 0.3);
-}
-
-.login-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(244, 114, 182, 0.4);
-}
 
 /* ページコンテンツ */
 .page-content {
@@ -1565,5 +1528,36 @@ onUnmounted(() => {
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     gap: 12px;
   }
+}
+
+/* もっと見るボタン */
+.load-more-container {
+  display: flex;
+  justify-content: center;
+  padding: 24px 0;
+  margin-top: 16px;
+}
+
+.load-more-btn {
+  padding: 12px 32px;
+  background: #fff;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  color: #666;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.load-more-btn:hover:not(:disabled) {
+  background: #f8f9fa;
+  border-color: #ccc;
+  color: #333;
+}
+
+.load-more-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 </style>
