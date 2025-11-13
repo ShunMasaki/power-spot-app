@@ -586,17 +586,23 @@ onMounted(async () => {
   box-shadow: 0 4px 12px rgba(32, 201, 151, 0.4);
 }
 
-.spots-list {
-  background: rgba(255, 255, 255, 0.2);
-  backdrop-filter: blur(15px);
-  -webkit-backdrop-filter: blur(15px); /* Safari対応 */
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-top: none;
-  border-radius: 0 0 12px 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  max-height: 50vh;
-  overflow-y: auto;
-}
+  .spots-list {
+    background: rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px); /* Safari対応 */
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-top: none;
+    border-radius: 0 0 12px 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    max-height: 50vh;
+    overflow-y: auto;
+  }
+
+  @media (max-width: 768px) {
+    .spots-list {
+      max-height: calc(100vh - 280px); /* 検索フォーム、ヘッダー、スポット一覧ヘッダーのスペースを確保 */
+    }
+  }
 
 .spot-item {
   cursor: pointer;
@@ -679,11 +685,13 @@ onMounted(async () => {
         /* レスポンシブデザイン */
         @media (max-width: 768px) {
           .search-overlay {
+            position: fixed; /* スクロールしても固定 */
             top: 100px; /* モバイルでもヘッダーと被らないように */
             width: calc(100% - 80px); /* 現在地ボタンのスペースを確保 */
             left: 10px;
             transform: none;
             max-width: none;
+            z-index: 1001; /* マップより上に */
           }
 
   .search-bar {
@@ -693,8 +701,10 @@ onMounted(async () => {
   }
 
           .location-button-overlay {
+            position: fixed; /* スクロールしても固定 */
             top: 100px; /* モバイルでもヘッダーと被らないように */
             right: 10px;
+            z-index: 1001; /* マップより上に */
           }
 
   .location-btn {
@@ -708,11 +718,14 @@ onMounted(async () => {
   }
 
   .spots-overlay {
+    position: fixed; /* スクロールしても固定 */
     bottom: 10px;
     left: 10px;
     right: 10px;
     width: auto; /* 全幅に */
     max-width: none;
+    max-height: calc(100vh - 200px); /* 検索フォームとヘッダーのスペースを確保 */
+    z-index: 1001; /* マップより上に */
   }
 
   .spots-header {

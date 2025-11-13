@@ -59,7 +59,20 @@ const router = useRouter()
 
 // アプリ起動時に認証状態を初期化
 onMounted(async () => {
-  await auth.initializeAuth()
+  try {
+    await auth.initializeAuth()
+  } catch (error) {
+    console.error('Auth initialization error:', error)
+  }
+})
+
+// グローバルエラーハンドラー
+window.addEventListener('error', (event) => {
+  console.error('Global error:', event.error)
+})
+
+window.addEventListener('unhandledrejection', (event) => {
+  console.error('Unhandled promise rejection:', event.reason)
 })
 
 // ログイン成功時のコールバックを管理

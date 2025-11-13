@@ -6,146 +6,79 @@
   <title>パワスポ！</title>
   @if(app()->environment('production'))
     @php
-      // manifest.jsonから取得（最も確実な方法）
+      // 実際に存在するファイルを直接検索（最も確実な方法）
       $appJs = null;
       $appCssFiles = [];
-      $manifestPath = public_path('build/manifest.json');
       $buildDir = public_path('build/assets');
 
-      // デバッグ: 実際に存在するファイルを確認
-      $debugInfo = [
-        'manifest_exists' => file_exists($manifestPath),
-        'build_dir_exists' => is_dir($buildDir),
-        'build_dir' => $buildDir,
-      ];
-
-      if (file_exists($manifestPath)) {
-        $manifestContent = file_get_contents($manifestPath);
-        $manifest = json_decode($manifestContent, true);
-        $debugInfo['manifest_keys'] = array_keys($manifest ?? []);
-
-        if ($manifest) {
-          // resources/js/app.jsを探す
-          $appEntry = $manifest['resources/js/app.js'] ?? null;
-          if ($appEntry) {
-            $debugInfo['manifest_entry'] = $appEntry; // 完全なエントリをログに出力
-            $appJs = $appEntry['file'] ?? null;
-            $appCssFiles = $appEntry['css'] ?? [];
-            // 空文字列の場合はnullに設定
-            if ($appJs === '' || empty(trim($appJs))) {
-              $appJs = null;
-            }
-            // CSSファイルも空文字列を除外
-            $appCssFiles = array_filter($appCssFiles, function($css) {
-              return !empty(trim($css));
-            });
-            $debugInfo['found_via_entry'] = true;
-          } else {
-            // フォールバック: キー名で検索
-            foreach ($manifest as $key => $value) {
-              if (strpos($key, 'resources/js/app.js') !== false ||
-                  strpos($key, 'app.js') !== false ||
-                  (isset($value['file']) && strpos($value['file'], 'app-') === 0)) {
-                $appJs = $value['file'] ?? null;
-                // 空文字列の場合はnullに設定
-                if ($appJs === '' || empty(trim($appJs))) {
-                  $appJs = null;
-                }
-                if (empty($appCssFiles) && isset($value['css'])) {
-                  $appCssFiles = array_filter($value['css'], function($css) {
-                    return !empty(trim($css));
-                  });
-                }
-                $debugInfo['found_via_fallback'] = $key;
-                break;
-              }
-            }
-          }
-        }
-      }
-
-      // manifest.jsonが見つからない場合、直接ファイルを探す
-      if (!$appJs && is_dir($buildDir)) {
-        // app-*.jsファイルを探す
+      // 直接ファイルを検索（manifest.jsonに依存しない）
+      if (is_dir($buildDir)) {
+        // app-*.jsファイルを探す（最新のファイルを優先）
         $jsFiles = glob($buildDir . '/app-*.js');
         if (!empty($jsFiles)) {
+          // ファイル名でソート（最新のものを優先）
+          usort($jsFiles, function($a, $b) {
+            return filemtime($b) - filemtime($a);
+          });
           $appJs = 'assets/' . basename($jsFiles[0]);
-          $debugInfo['found_via_glob_js'] = basename($jsFiles[0]);
         }
 
         // app-*.cssファイルを探す
         $cssFiles = glob($buildDir . '/app-*.css');
-        foreach ($cssFiles as $cssFile) {
-          $appCssFiles[] = 'assets/' . basename($cssFile);
+        if (!empty($cssFiles)) {
+          // ファイル名でソート（最新のものを優先）
+          usort($cssFiles, function($a, $b) {
+            return filemtime($b) - filemtime($a);
+          });
+          $appCssFiles = [];
+          foreach ($cssFiles as $cssFile) {
+            $appCssFiles[] = 'assets/' . basename($cssFile);
+          }
         }
-        $debugInfo['found_css_count'] = count($cssFiles);
       }
 
-      // ファイルパスの先頭に /build/ が含まれていない場合は追加
+      // ファイルパスを /build/assets/ 形式に統一
       if ($appJs && !empty(trim($appJs))) {
-        // manifest.jsonから取得した場合は、既にassets/が含まれている可能性がある
-        if (strpos($appJs, '/build/') === 0) {
-          // 既に/build/で始まっている場合はそのまま
-        } elseif (strpos($appJs, 'assets/') === 0) {
+        // "assets/app-xxx.js" -> "/build/assets/app-xxx.js"
+        if (strpos($appJs, 'assets/') === 0) {
           $appJs = '/build/' . $appJs;
-        } elseif (strpos($appJs, 'build/') === 0) {
-          $appJs = '/' . $appJs;
-        } else {
-          $appJs = '/build/assets/' . $appJs;
+        } elseif (strpos($appJs, '/build/') !== 0) {
+          // それ以外の場合は /build/assets/ を追加
+          $appJs = '/build/assets/' . ltrim($appJs, '/');
         }
       } else {
-        $appJs = null; // 空文字列の場合はnullに設定
+        $appJs = null;
       }
 
       // CSSファイルパスも同様に処理
       $appCssFiles = array_filter(array_map(function($cssFile) {
         if (empty(trim($cssFile))) {
-          return null; // 空文字列の場合はnullを返す
+          return null;
         }
-        if (strpos($cssFile, '/build/') === 0) {
-          return $cssFile;
-        } elseif (strpos($cssFile, 'assets/') === 0) {
+        // "assets/app-xxx.css" -> "/build/assets/app-xxx.css"
+        if (strpos($cssFile, 'assets/') === 0) {
           return '/build/' . $cssFile;
-        } elseif (strpos($cssFile, 'build/') === 0) {
-          return '/' . $cssFile;
-        } else {
-          return '/build/assets/' . $cssFile;
+        } elseif (strpos($cssFile, '/build/') !== 0) {
+          return '/build/assets/' . ltrim($cssFile, '/');
         }
+        return $cssFile;
       }, $appCssFiles), function($value) {
         return $value !== null && !empty(trim($value));
       });
-
-      // 実際のファイル存在を確認
-      if ($appJs) {
-        $jsFilePath = public_path(ltrim($appJs, '/'));
-        $debugInfo['js_file_exists'] = file_exists($jsFilePath);
-        $debugInfo['js_file_path'] = $jsFilePath;
-      }
-      foreach ($appCssFiles as $cssFile) {
-        $cssFilePath = public_path(ltrim($cssFile, '/'));
-        $debugInfo['css_files_check'][] = [
-          'path' => $cssFile,
-          'full_path' => $cssFilePath,
-          'exists' => file_exists($cssFilePath),
-        ];
-      }
-
-      // デバッグ情報をログに出力
-      \Log::info('Asset loading debug', array_merge($debugInfo, [
-        'appJs' => $appJs,
-        'appCssFiles' => $appCssFiles,
-      ]));
     @endphp
-    @foreach($appCssFiles as $cssFile)
-      @if(!empty(trim($cssFile)))
-        <link rel="stylesheet" href="{{ $cssFile }}">
-      @endif
-    @endforeach
     @if($appJs && !empty(trim($appJs)))
+      @foreach($appCssFiles as $cssFile)
+        @if(!empty(trim($cssFile)))
+          <link rel="stylesheet" href="{{ $cssFile }}">
+        @endif
+      @endforeach
       <script type="module" src="{{ $appJs }}"></script>
     @else
       {{-- フォールバック: エラーログ --}}
-      <script>console.error('App JS file not found. Manifest path: {{ $manifestPath ?? "N/A" }}');</script>
+      <script>
+        console.error('App JS file not found. Build dir: {{ $buildDir ?? "N/A" }}');
+        document.getElementById('app').innerHTML = '<div style="padding: 20px; text-align: center;"><h1>アセット読み込みエラー</h1><p>JavaScriptファイルが見つかりませんでした。</p><p style="font-size: 12px; color: #666;">Build dir: {{ $buildDir ?? "N/A" }}</p></div>';
+      </script>
     @endif
   @else
     @vite('resources/js/app.js')

@@ -50,15 +50,36 @@ axios.interceptors.request.use(async (config) => {
   return config
 })
 
-const app = createApp(App)
-const pinia = createPinia()
-
-app.use(pinia)
-app.use(router)
-
-// 認証ストアを初期化
+// 認証ストアをインポート
 import { useAuthStore } from './stores/auth'
-const authStore = useAuthStore()
-authStore.initializeAuth()
 
-app.mount('#app')
+try {
+  const app = createApp(App)
+  const pinia = createPinia()
+
+  app.use(pinia)
+  app.use(router)
+
+  // 認証ストアを初期化
+  const authStore = useAuthStore()
+
+  // エラーハンドリング付きで初期化
+  authStore.initializeAuth().catch(error => {
+    console.error('Auth store initialization error:', error)
+  })
+
+  app.mount('#app')
+} catch (error) {
+  console.error('Failed to mount app:', error)
+  // エラーを画面に表示
+  const appElement = document.getElementById('app')
+  if (appElement) {
+    appElement.innerHTML = `
+      <div style="padding: 20px; text-align: center;">
+        <h1>エラーが発生しました</h1>
+        <p>アプリの読み込みに失敗しました。ページを再読み込みしてください。</p>
+        <p style="color: red; font-size: 12px; margin-top: 20px;">${error.message}</p>
+      </div>
+    `
+  }
+}

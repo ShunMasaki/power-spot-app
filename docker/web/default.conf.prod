@@ -15,10 +15,13 @@ server {
 
     # ビルド済みアセットへのアクセスを優先
     location /build/ {
+        root /var/www/html/public;
         try_files $uri =404;
         expires 1y;
         add_header Cache-Control "public, immutable";
         access_log off;
+        # 404エラーをそのまま返す（index.phpにリダイレクトしない）
+        error_page 404 =404;
     }
 
     location / {

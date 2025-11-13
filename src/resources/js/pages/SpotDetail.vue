@@ -108,7 +108,7 @@ const fetchReviews = async () => {
         const res = await axios.get(`/api/spots/${route.params.id}/reviews`)
         reviews.value = res.data
     } catch (error) {
-        console.log('レビュー取得エラー:', error)
+        // エラーは無視（レビューが取得できない場合は空のリストを表示）
     }
 }
 
@@ -118,7 +118,7 @@ const checkVisitStatus = async () => {
         const res = await axios.get(`/api/spots/${route.params.id}/visit/check`)
         isVisited.value = res.data.visited
     } catch (error) {
-        console.log('訪問状態確認エラー:', error)
+        // エラーは無視（訪問状態が取得できない場合は未訪問として扱う）
     }
 }
 
@@ -137,7 +137,6 @@ const toggleVisit = async () => {
             isVisited.value = true
         }
     } catch (error) {
-        console.log('訪問登録エラー:', error)
         alert('エラーが発生しました')
     }
 }
@@ -182,7 +181,6 @@ const submitReview = async () => {
                 errorMessage.value = '入力内容に誤りがあります。'
             }
         } else {
-            console.log('レビュー投稿エラー:', error)
             alert('投稿に失敗しました')
         }
     }

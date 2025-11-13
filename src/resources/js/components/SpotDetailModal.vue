@@ -605,7 +605,13 @@ const openRouteInMaps = (event) => {
   // Web版のGoogle Mapsを直接開く（どのデバイスでも確実に動作）
   const webUrl = `https://www.google.com/maps/dir/?api=1&destination=${destination}&travelmode=transit`
 
-  window.open(webUrl, '_blank')
+  // スマホの場合は同じタブで開く（アプリが開いた後、白紙のタブが残らないように）
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+  if (isMobile) {
+    window.location.href = webUrl
+  } else {
+    window.open(webUrl, '_blank')
+  }
 }
 
 // 画像アップロード成功時の処理
@@ -1757,7 +1763,7 @@ watch(() => auth.isLoggedIn, (isLoggedIn) => {
   }
 
   .modal-body {
-    padding: 0 16px 16px;
+    padding: 0 16px 80px; /* 下部に十分な余白を確保 */
     font-size: 16px; /* スマホで見やすいサイズに */
   }
 

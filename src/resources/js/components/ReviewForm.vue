@@ -99,10 +99,8 @@ const submitReview = async () => {
   if (!rating.value || !comment.value.trim()) return
 
   const spotIdToUse = props.spotId
-  console.log('submitReview - using spotId:', spotIdToUse)
 
   if (!spotIdToUse) {
-    console.error('spotId is null or undefined')
     alert('スポットIDが取得できませんでした。もう一度お試しください。')
     return
   }
@@ -144,7 +142,6 @@ const submitReview = async () => {
 watch(() => props.isOpen, (isOpen) => {
   if (isOpen) {
     resetForm()
-    console.log('ReviewForm opened - spotId:', props.spotId)
   }
 })
 </script>
