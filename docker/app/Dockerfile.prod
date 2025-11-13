@@ -32,30 +32,28 @@ RUN rm -f /var/www/html/.env /var/www/html/.env.example
 RUN composer install --optimize-autoloader --no-dev
 
 # aws-exports.jsを生成（ビルド時に必要）
-RUN cat > resources/js/aws-exports.js << 'EOF'
-// 現在のオリジンを取得（本番環境ではALBのURL、開発環境ではlocalhost:8080）
-const currentOrigin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8080'
-
-const awsconfig = {
-    Auth: {
-      Cognito: {
-        userPoolId: 'us-east-1_fbJdT2Z0S',
-        userPoolClientId: '2lev0bbr4un1so7aipuphl0o9o',
-        loginWith: {
-          oauth: {
-            domain: 'us-east-1fbjdt2z0s.auth.us-east-1.amazoncognito.com',
-            scopes: ['email', 'openid'],
-            redirectSignIn: [currentOrigin],
-            redirectSignOut: [currentOrigin],
-            responseType: 'code'
-          }
-        }
-      }
-    }
-  }
-
-  export default awsconfig
-EOF
+RUN echo '// 現在のオリジンを取得（本番環境ではALBのURL、開発環境ではlocalhost:8080）' > resources/js/aws-exports.js && \
+    echo 'const currentOrigin = typeof window !== "undefined" ? window.location.origin : "http://localhost:8080"' >> resources/js/aws-exports.js && \
+    echo '' >> resources/js/aws-exports.js && \
+    echo 'const awsconfig = {' >> resources/js/aws-exports.js && \
+    echo '    Auth: {' >> resources/js/aws-exports.js && \
+    echo '      Cognito: {' >> resources/js/aws-exports.js && \
+    echo '        userPoolId: "us-east-1_fbJdT2Z0S",' >> resources/js/aws-exports.js && \
+    echo '        userPoolClientId: "2lev0bbr4un1so7aipuphl0o9o",' >> resources/js/aws-exports.js && \
+    echo '        loginWith: {' >> resources/js/aws-exports.js && \
+    echo '          oauth: {' >> resources/js/aws-exports.js && \
+    echo '            domain: "us-east-1fbjdt2z0s.auth.us-east-1.amazoncognito.com",' >> resources/js/aws-exports.js && \
+    echo '            scopes: ["email", "openid"],' >> resources/js/aws-exports.js && \
+    echo '            redirectSignIn: [currentOrigin],' >> resources/js/aws-exports.js && \
+    echo '            redirectSignOut: [currentOrigin],' >> resources/js/aws-exports.js && \
+    echo '            responseType: "code"' >> resources/js/aws-exports.js && \
+    echo '          }' >> resources/js/aws-exports.js && \
+    echo '        }' >> resources/js/aws-exports.js && \
+    echo '      }' >> resources/js/aws-exports.js && \
+    echo '    }' >> resources/js/aws-exports.js && \
+    echo '  }' >> resources/js/aws-exports.js && \
+    echo '' >> resources/js/aws-exports.js && \
+    echo '  export default awsconfig' >> resources/js/aws-exports.js
 
 # Node.js依存関係をインストール
 RUN npm install --verbose || (echo "npm install failed" && exit 1)
