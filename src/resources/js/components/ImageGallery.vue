@@ -411,8 +411,39 @@ onUnmounted(() => {
 
 /* レスポンシブ */
 @media (max-width: 768px) {
+  .thumbnail-list {
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch; /* iOSでスムーズなスクロール */
+    scrollbar-width: thin;
+    padding-bottom: 8px;
+  }
+
+  .thumbnail-list::-webkit-scrollbar {
+    height: 4px;
+  }
+
+  .thumbnail-list::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .thumbnail-list::-webkit-scrollbar-thumb {
+    background: #e0e0e0;
+    border-radius: 2px;
+  }
+
   .thumbnail-item {
-    height: 150px;
+    flex: 0 0 120px; /* 正方形の幅 */
+    width: 120px;
+    height: 120px; /* 正方形の高さ */
+    min-width: 120px;
+    aspect-ratio: 1; /* 正方形を保証 */
+  }
+
+  .thumbnail-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover; /* 画像を正方形に収める */
   }
 
   .main-image-container {

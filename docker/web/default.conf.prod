@@ -2,6 +2,9 @@ server {
     listen 80;
     root /var/www/html/public;
 
+    # 画像アップロード用にボディサイズ上限を拡大
+    client_max_body_size 20M;
+
     add_header X-Frame-Options "SAMEORIGIN";
     add_header X-XSS-Protection "1; mode=block";
     add_header X-Content-Type-Options "nosniff";
@@ -15,6 +18,7 @@ server {
         try_files $uri =404;
         expires 1y;
         add_header Cache-Control "public, immutable";
+        access_log off;
     }
 
     location / {

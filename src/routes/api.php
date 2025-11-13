@@ -38,7 +38,9 @@ Route::middleware('api')->group(function () {
     // 画像関連のルート
     Route::get('/user/images', [ImageController::class, 'getAllUserImages']); // マイページ用
     Route::get('/spots/{spot}/user-images', [ImageController::class, 'getUserImages']);
-    Route::post('/spots/{spot}/images', [ImageController::class, 'store']);
+    Route::post('/spots/{spot}/images', [ImageController::class, 'store']); // 旧方式（後方互換性のため残す）
+    Route::post('/spots/{spot}/images/presigned-url', [ImageController::class, 'getPresignedUrl']); // Presigned URL取得
+    Route::post('/spots/{spot}/images/from-s3', [ImageController::class, 'storeFromS3']); // S3直接アップロード後のメタデータ保存
     Route::delete('/spots/{spot}/images/{image}', [ImageController::class, 'destroy']);
     Route::get('/spots/{spot}/images/{type}/{filename}', [ImageController::class, 'serveImage'])->where('filename', '.*');
 

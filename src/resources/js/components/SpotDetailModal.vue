@@ -49,7 +49,10 @@
                         <path d="M20.84 4.61C20.3292 4.099 19.7228 3.69364 19.0554 3.41708C18.3879 3.14052 17.6725 2.99817 16.95 2.99817C16.2275 2.99817 15.5121 3.14052 14.8446 3.41708C14.1772 3.69364 13.5708 4.099 13.06 4.61L12 5.67L10.94 4.61C9.9083 3.5783 8.50903 2.9987 7.05 2.9987C5.59096 2.9987 4.19169 3.5783 3.16 4.61C2.1283 5.6417 1.5487 7.04097 1.5487 8.5C1.5487 9.95903 2.1283 11.3583 3.16 12.39L12 21.23L20.84 12.39C21.351 11.8792 21.7563 11.2728 22.0329 10.6053C22.3095 9.93789 22.4518 9.22248 22.4518 8.5C22.4518 7.77752 22.3095 7.06211 22.0329 6.39467C21.7563 5.72723 21.351 5.1208 20.84 4.61Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                       </svg>
                       <span class="action-text">
-                        <template v-if="isFavorited">お気に入り<br>済み</template>
+                        <template v-if="isFavorited">
+                          <span class="action-text-pc">お気に入り<br>済み</span>
+                          <span class="action-text-mobile">お気に入り済み</span>
+                        </template>
                         <template v-else>お気に入り</template>
                       </span>
                     </button>
@@ -592,43 +595,17 @@ const getRouteUrl = () => {
   return `https://www.google.com/maps/dir/?api=1&destination=${destination}&destination_place_id=&travelmode=transit`
 }
 
-// スマホでGoogle Mapsアプリを優先で開く
+// Google Mapsで経路を開く（Web版を直接開く）
 const openRouteInMaps = (event) => {
   event.preventDefault()
 
   if (!spot.value) return
 
   const destination = `${spot.value.latitude},${spot.value.longitude}`
+  // Web版のGoogle Mapsを直接開く（どのデバイスでも確実に動作）
+  const webUrl = `https://www.google.com/maps/dir/?api=1&destination=${destination}&travelmode=transit`
 
-  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
-
-  if (isMobile) {
-    const appUrl = `comgooglemaps://?daddr=${destination}&directionsmode=transit`
-    const webUrl = `https://www.google.com/maps/dir/?api=1&destination=${destination}&travelmode=transit`
-
-    const testLink = document.createElement('a')
-    testLink.href = appUrl
-    testLink.style.display = 'none'
-    document.body.appendChild(testLink)
-
-    const startTime = Date.now()
-
-    try {
-      testLink.click()
-
-      setTimeout(() => {
-        if (Date.now() - startTime < 2000) {
-          window.open(webUrl, '_blank')
-        }
-      }, 1000)
-    } catch (error) {
-      window.open(webUrl, '_blank')
-    }
-
-    document.body.removeChild(testLink)
-  } else {
-    window.open(getRouteUrl(), '_blank')
-  }
+  window.open(webUrl, '_blank')
 }
 
 // 画像アップロード成功時の処理
@@ -739,6 +716,15 @@ watch(() => auth.isLoggedIn, (isLoggedIn) => {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans JP', sans-serif;
 }
 
+/* PCでは420px、スマホでは全画面 */
+@media (max-width: 768px) {
+  .modal-content {
+    width: 100vw !important;
+    left: 0 !important;
+    right: 0 !important;
+  }
+}
+
 .slide-in-left {
   animation: slideInLeft 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -749,6 +735,22 @@ watch(() => auth.isLoggedIn, (isLoggedIn) => {
   }
   to {
     transform: translateX(0);
+  }
+}
+
+/* スマホでは下からスライドイン */
+@media (max-width: 768px) {
+  .slide-in-left {
+    animation: slideInUp 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  @keyframes slideInUp {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: translateY(0);
+    }
   }
 }
 
@@ -875,6 +877,7 @@ watch(() => auth.isLoggedIn, (isLoggedIn) => {
   background: white;
   border-bottom: 1px solid #e8eaed;
   padding: 0 24px;
+  overflow-x: visible; /* PCでは横スクロール不要 */
 }
 
 .tab-btn {
@@ -1612,6 +1615,15 @@ watch(() => auth.isLoggedIn, (isLoggedIn) => {
   font-weight: 500;
 }
 
+/* PCではモバイル用のテキストを非表示、PC用を表示 */
+.action-text-mobile {
+  display: none;
+}
+
+.action-text-pc {
+  display: inline;
+}
+
 /* チェックマークのアニメーション */
 .check-filled {
   animation: checkBounce 0.5s ease-in-out;
@@ -1673,21 +1685,153 @@ watch(() => auth.isLoggedIn, (isLoggedIn) => {
 /* レスポンシブデザイン */
 @media (max-width: 768px) {
   .modal-content {
-    width: 100vw;
+    width: 100vw !important;
+    height: 100vh !important; /* 全画面表示 */
+    left: 0 !important;
+    right: 0 !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    border-radius: 0 !important; /* 角を丸くしない */
+    max-width: 100vw !important;
+    max-height: 100vh !important;
+    overflow-y: auto;
   }
 
+  .modal-header {
+    padding: 20px;
+    position: sticky;
+    top: 0;
+    background: white;
+    z-index: 10;
+    border-bottom: 1px solid #e8eaed;
+  }
+
+  .header-title {
+    font-size: 22px; /* スマホで見やすいサイズに */
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+
+  .header-address {
+    font-size: 14px;
+  }
+
+  .action-buttons {
+    gap: 12px;
+    margin-top: 16px;
+    flex-direction: column; /* スマホでは縦並び */
+  }
+
+  .action-btn {
+    padding: 14px 18px; /* スマホでタップしやすいサイズに */
+    font-size: 16px; /* スマホで見やすいサイズに */
+    border-radius: 12px;
+    width: 100%; /* 全幅に */
+    white-space: nowrap; /* 改行を防ぐ */
+  }
+
+  .action-btn svg {
+    width: 24px; /* スマホで見やすいサイズに */
+    height: 24px;
+    flex-shrink: 0; /* アイコンは縮小しない */
+  }
+
+  .action-text {
+    font-size: 16px; /* スマホで見やすいサイズに */
+    font-weight: 500;
+    white-space: nowrap; /* 改行を防ぐ */
+  }
+
+  /* スマホではPC用のテキストを非表示、モバイル用を表示 */
+  .action-text-pc {
+    display: none;
+  }
+
+  .action-text-mobile {
+    display: inline;
+  }
+
+
   .spot-title {
-    font-size: 24px;
+    font-size: 36px;
   }
 
   .modal-body {
     padding: 0 16px 16px;
+    font-size: 16px; /* スマホで見やすいサイズに */
   }
 
   .section-header {
     flex-direction: column;
     align-items: flex-start;
     gap: 12px;
+  }
+
+  .section-title {
+    font-size: 20px; /* スマホで見やすいサイズに */
+    font-weight: 600;
+  }
+
+  .tab-navigation {
+    overflow-x: auto; /* 横スクロールを有効化 */
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch; /* iOSでスムーズなスクロール */
+    scrollbar-width: thin;
+    padding: 0 16px;
+  }
+
+  .tab-navigation::-webkit-scrollbar {
+    height: 4px;
+  }
+
+  .tab-navigation::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .tab-navigation::-webkit-scrollbar-thumb {
+    background: #e0e0e0;
+    border-radius: 2px;
+  }
+
+  .tab-btn {
+    padding: 12px 16px; /* スマホでタップしやすいサイズに */
+    font-size: 15px; /* スマホで見やすいサイズに */
+    flex-shrink: 0; /* 縮小しない */
+    min-width: fit-content; /* 内容に合わせた最小幅 */
+    white-space: nowrap; /* 改行を防ぐ */
+  }
+
+  .route-link {
+    padding: 14px 18px; /* スマホでタップしやすいサイズに */
+    font-size: 16px; /* スマホで見やすいサイズに */
+  }
+
+  .review-item {
+    padding: 16px; /* スマホで見やすい余白に */
+  }
+
+  .review-comment {
+    font-size: 15px; /* スマホで見やすいサイズに */
+    line-height: 1.6;
+  }
+
+  .review-rating {
+    margin-bottom: 12px;
+  }
+
+  .review-date {
+    font-size: 15px;
+  }
+
+  .close-btn {
+    width: 48px; /* スマホでタップしやすいサイズに */
+    height: 48px;
+    padding: 12px;
+  }
+
+  .close-btn svg {
+    width: 28px; /* スマホで見やすいサイズに */
+    height: 28px;
   }
 }
 </style>

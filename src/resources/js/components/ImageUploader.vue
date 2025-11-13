@@ -153,6 +153,7 @@
 <script setup>
 import { ref, computed, watch, defineProps, defineEmits } from 'vue'
 import axios from 'axios'
+import heic2any from 'heic2any'
 
 const props = defineProps({
   title: {
@@ -272,12 +273,71 @@ const handleCameraCapture = (event) => {
   event.target.value = ''
 }
 
+// HEIC形式のファイルをJPEGに変換
+const convertHeicToJpeg = async (file) => {
+  // iPhoneのライブラリから選択した画像の場合、MIMEタイプが空でもHEIC形式の可能性がある
+  const isHeic = file.name.toLowerCase().endsWith('.heic') ||
+                 file.name.toLowerCase().endsWith('.heif') ||
+                 file.type === 'image/heic' ||
+                 file.type === 'image/heif' ||
+                 (!file.type || file.type === '') // MIMEタイプが空の場合もHEICの可能性
+
+  if (!isHeic) {
+    return file
+  }
+
+  try {
+    const convertedBlob = await heic2any({
+      blob: file,
+      toType: 'image/jpeg',
+      quality: 0.8 // 品質を0.8に下げて変換速度を向上
+    })
+
+    // heic2anyは配列を返す場合がある
+    const blob = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob
+
+    // ファイル名を生成（HEIC/HEIF拡張子を.jpgに変更）
+    const newFileName = file.name.replace(/\.(heic|heif)$/i, '.jpg')
+
+    // BlobをFileオブジェクトに変換（MIMEタイプを明示的に設定）
+    const convertedFile = new File([blob], newFileName, {
+      type: 'image/jpeg',
+      lastModified: file.lastModified || Date.now()
+    })
+
+    // MIMEタイプが正しく設定されているか確認
+    if (!convertedFile.type || convertedFile.type === '') {
+      // Fileオブジェクトのtypeは読み取り専用なので、新しいFileオブジェクトを作成
+      const fixedFile = new File([blob], newFileName, {
+        type: 'image/jpeg',
+        lastModified: convertedFile.lastModified
+      })
+      return fixedFile
+    }
+
+    return convertedFile
+  } catch (error) {
+    console.error('HEIC conversion failed:', error)
+    // 変換に失敗した場合は元のファイルを返す
+    return file
+  }
+}
+
 // ファイル処理
-const handleFiles = (files) => {
+const handleFiles = async (files) => {
   errorMessage.value = ''
 
-  // 画像ファイルのみフィルタリング
-  const imageFiles = files.filter(file => file.type.startsWith('image/'))
+  // 画像ファイルのみフィルタリング（HEIC/HEIFも含む、MIMEタイプが空でもファイル名で判定）
+  const imageFiles = files.filter(file => {
+    const isImage = file.type.startsWith('image/')
+    const isHeic = file.name.toLowerCase().endsWith('.heic') ||
+                   file.name.toLowerCase().endsWith('.heif')
+    const hasNoType = !file.type || file.type === ''
+    // MIMEタイプが空でも、拡張子が画像形式の場合は許可
+    const hasImageExtension = /\.(jpg|jpeg|png|gif|webp|heic|heif)$/i.test(file.name)
+
+    return isImage || (isHeic && hasNoType) || (hasNoType && hasImageExtension)
+  })
 
   if (imageFiles.length === 0) {
     errorMessage.value = '画像ファイルを選択してください'
@@ -285,34 +345,115 @@ const handleFiles = (files) => {
   }
 
   // アップロード可能な枚数をチェック
-  const filesToUpload = imageFiles.slice(0, remainingSlots.value)
+  const filesToProcess = imageFiles.slice(0, remainingSlots.value)
 
-  if (filesToUpload.length < imageFiles.length) {
+  if (filesToProcess.length < imageFiles.length) {
     errorMessage.value = `最大${props.maxFiles}枚まで選択可能です`
   }
 
-  // ファイルサイズチェック (5MB制限)
-  const oversizedFiles = filesToUpload.filter(file => file.size > 5 * 1024 * 1024)
-  if (oversizedFiles.length > 0) {
-    errorMessage.value = 'ファイルサイズは5MB以下にしてください'
+  // HEIC形式のファイルをJPEGに変換（並列実行）
+  isUploading.value = true
+  try {
+    const convertedFiles = await Promise.all(
+      filesToProcess.map(file => convertHeicToJpeg(file))
+    )
+
+    // ファイルサイズチェック (5MB制限) - 変換後のサイズでチェック
+    const oversizedFiles = convertedFiles.filter(file => file.size > 5 * 1024 * 1024)
+    if (oversizedFiles.length > 0) {
+      errorMessage.value = 'ファイルサイズは5MB以下にしてください'
+      isUploading.value = false
+      return
+    }
+
+    // アップロード実行（圧縮と並列アップロードを含む）
+    await uploadFiles(convertedFiles)
+  } catch (error) {
+    console.error('File processing error:', error)
+    errorMessage.value = 'ファイルの処理に失敗しました'
+    isUploading.value = false
+  }
+}
+
+// 画像を圧縮・リサイズ（最大幅1920px、品質0.85）
+const compressImage = (file) => {
+  return new Promise((resolve) => {
+    // 画像ファイルでない場合はそのまま返す
+    if (!file.type.startsWith('image/')) {
+      resolve(file)
+      return
+    }
+
+    // 既に小さいファイル（1MB以下）の場合は圧縮をスキップ
+    if (file.size <= 1024 * 1024) {
+      resolve(file)
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const img = new Image()
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        let width = img.width
+        let height = img.height
+        const maxWidth = 1920
+        const quality = 0.85
+
+        // リサイズ（最大幅1920px）
+        if (width > maxWidth) {
+          height = (height * maxWidth) / width
+          width = maxWidth
+        }
+
+        canvas.width = width
+        canvas.height = height
+
+        const ctx = canvas.getContext('2d')
+        ctx.drawImage(img, 0, 0, width, height)
+
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              const compressedFile = new File([blob], file.name, {
+                type: 'image/jpeg',
+                lastModified: file.lastModified || Date.now()
+              })
+              resolve(compressedFile)
+            } else {
+              resolve(file)
+            }
+          },
+          'image/jpeg',
+          quality
+        )
+      }
+      img.onerror = () => resolve(file)
+      img.src = e.target.result
+    }
+    reader.onerror = () => resolve(file)
+    reader.readAsDataURL(file)
+  })
+}
+
+// ファイルアップロード（並列実行）
+const uploadFiles = async (files) => {
+  if (files.length === 0) {
+    isUploading.value = false
     return
   }
 
-  // アップロード実行
-  uploadFiles(filesToUpload)
-}
-
-// ファイルアップロード
-const uploadFiles = async (files) => {
-  if (files.length === 0) return
-
-  isUploading.value = true
   errorMessage.value = ''
 
   try {
-    for (const file of files) {
-      await uploadSingleFile(file)
-    }
+    // 画像を圧縮（並列実行）
+    const compressedFiles = await Promise.all(
+      files.map(file => compressImage(file))
+    )
+
+    // アップロードを並列実行（最大2つまで同時）
+    const uploadPromises = compressedFiles.map(file => uploadSingleFile(file))
+    await Promise.all(uploadPromises)
   } catch (error) {
     console.error('Upload error:', error)
     errorMessage.value = 'アップロードに失敗しました'
@@ -322,23 +463,67 @@ const uploadFiles = async (files) => {
   }
 }
 
-// 単一ファイルアップロード
+// 単一ファイルアップロード（Presigned URLを使用して直接S3にアップロード）
 const uploadSingleFile = async (file) => {
-  const formData = new FormData()
-  formData.append('image', file)
-  formData.append('type', props.type)
-  formData.append('spot_id', props.spotId)
+  // ファイルが有効か確認
+  if (!file || !(file instanceof File)) {
+    console.error('Invalid file object:', file)
+    errorMessage.value = 'ファイルが無効です'
+    throw new Error('Invalid file object')
+  }
 
-  const response = await axios.post(`/api/spots/${props.spotId}/images`, formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data'
+  // ファイルサイズが0でないか確認
+  if (file.size === 0) {
+    console.error('File size is 0:', file)
+    errorMessage.value = 'ファイルサイズが0です'
+    throw new Error('File size is 0')
+  }
+
+  try {
+    // 1. Presigned URLを取得
+    const presignedResponse = await axios.post(`/api/spots/${props.spotId}/images/presigned-url`, {
+      type: props.type,
+      filename: file.name,
+      content_type: file.type || 'image/jpeg'
+    })
+
+    const { presigned_url, s3_key } = presignedResponse.data
+
+    // 2. Presigned URLを使って直接S3にアップロード
+    const uploadResponse = await fetch(presigned_url, {
+      method: 'PUT',
+      body: file,
+      headers: {
+        'Content-Type': file.type || 'image/jpeg'
+      }
+    })
+
+    if (!uploadResponse.ok) {
+      const errorText = await uploadResponse.text()
+      console.error('S3 upload failed:', uploadResponse.status, errorText)
+      throw new Error(`S3 upload failed: ${uploadResponse.status}`)
     }
-  })
 
-  const newImage = response.data
-  images.value.push(newImage)
+    // 3. メタデータをバックエンドに送信してDBに保存
+    const metadataResponse = await axios.post(`/api/spots/${props.spotId}/images/from-s3`, {
+      type: props.type,
+      s3_key: s3_key,
+      original_filename: file.name
+    })
 
-  emit('uploaded', newImage)
+    const newImage = metadataResponse.data
+    images.value.push(newImage)
+
+    emit('uploaded', newImage)
+  } catch (error) {
+    console.error('Upload error:', error)
+    if (error.response) {
+      errorMessage.value = error.response.data?.error || error.response.data?.message || 'アップロードに失敗しました'
+    } else {
+      errorMessage.value = 'アップロードに失敗しました'
+    }
+    throw error
+  }
 }
 
 // 画像削除（確認モーダルを表示）
@@ -644,6 +829,47 @@ const confirmDelete = async () => {
   gap: 16px;
 }
 
+/* スマホでは横スクロール */
+@media (max-width: 768px) {
+  .uploaded-images {
+    display: flex;
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch; /* iOSでスムーズなスクロール */
+    gap: 12px;
+    scrollbar-width: thin;
+    padding-bottom: 8px;
+  }
+
+  .uploaded-images::-webkit-scrollbar {
+    height: 4px;
+  }
+
+  .uploaded-images::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .uploaded-images::-webkit-scrollbar-thumb {
+    background: #e0e0e0;
+    border-radius: 2px;
+  }
+
+  .image-item {
+    flex-shrink: 0; /* 縮小しない */
+    width: 120px; /* 固定幅 */
+    min-width: 120px;
+    height: 120px; /* 正方形にするため高さも固定 */
+    aspect-ratio: 1; /* 正方形を保証 */
+  }
+
+  .image-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover; /* 画像を正方形に収める */
+  }
+}
+
 .image-item {
   position: relative;
   aspect-ratio: 1;
@@ -760,5 +986,20 @@ const confirmDelete = async () => {
 
 .delete-btn:hover {
   background: #dc2626;
+}
+
+/* レスポンシブデザイン */
+@media (max-width: 768px) {
+  .upload-title {
+    font-size: 18px;
+    white-space: nowrap; /* 改行を防ぐ */
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .upload-text {
+    font-size: 16px;
+    white-space: nowrap; /* 改行を防ぐ */
+  }
 }
 </style>

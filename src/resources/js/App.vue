@@ -193,4 +193,35 @@ box-sizing: border-box;
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(233, 30, 99, 0.4);
 }
+
+/* レスポンシブデザイン */
+@media (max-width: 768px) {
+  .header-bar {
+    padding: 0 16px; /* スマホで見やすい余白に */
+    height: 70px; /* ロゴを大きくするため高さを調整 */
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); /* ロゴを目立たせるため影を追加 */
+  }
+
+  .logo {
+    height: 56px; /* スマホで目立つサイズに拡大 */
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1)); /* ロゴに影を追加して目立たせる */
+  }
+
+  .logo-link {
+    display: flex;
+    align-items: center;
+  }
+
+  .header-right {
+    gap: 8px; /* スマホで見やすい間隔に */
+    margin-right: 0;
+  }
+
+  .auth-btn {
+    padding: 8px 14px; /* スマホでタップしやすいサイズに */
+    font-size: 14px; /* スマホで見やすいサイズに */
+    min-width: 70px;
+    border-radius: 20px;
+  }
+}
 </style>

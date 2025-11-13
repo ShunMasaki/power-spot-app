@@ -284,15 +284,20 @@ const initMap = async () => {
         }
     }
 
+    // スマホかどうかを判定
+    const isMobile = window.innerWidth <= 768
+    const defaultZoom = isMobile ? 14 : 12 // スマホではよりズームイン
+
     const mapOptions = {
         center: center,
-        zoom: 12,
+        zoom: defaultZoom,
         minZoom: 5, // 最小ズームレベル（日本全体が見える程度）
         maxZoom: 18, // 最大ズームレベル
         streetViewControl: false, // ストリートビューコントロールを無効化
         fullscreenControl: false, // フルスクリーンコントロールを無効化
         mapTypeControl: false, // マップタイプコントロールを無効化
         zoomControl: false, // ズームコントロールを無効化
+        gestureHandling: 'greedy', // 一本指で地図を動かせるようにする（disableDefaultUIより前に設定）
         disableDefaultUI: true, // デフォルトのUIをすべて無効化
         styles: [
             {
@@ -455,12 +460,13 @@ onMounted(async () => {
   top: 0;
   left: 0;
   z-index: 1;
+  touch-action: pan-x pan-y pinch-zoom; /* スマホでタッチ操作を有効化 */
 }
 
 /* 検索バーオーバーレイ */
 .search-overlay {
   position: absolute;
-  top: 80px; /* ヘッダーの高さ分下げる */
+  top: 100px; /* ヘッダーの高さ分下げる */
   left: 50%;
   transform: translateX(-50%);
   z-index: 1000;
@@ -471,7 +477,7 @@ onMounted(async () => {
 /* 現在地ボタンオーバーレイ */
 .location-button-overlay {
   position: absolute;
-  top: 80px; /* ヘッダーの高さ分下げる */
+  top: 100px; /* ヘッダーの高さ分下げる */
   right: 20px;
   z-index: 1000;
 }
@@ -670,40 +676,74 @@ onMounted(async () => {
   transform: translateY(0) scaleY(1);
 }
 
-/* レスポンシブデザイン */
-@media (max-width: 768px) {
-  .search-overlay {
-    top: 70px; /* モバイルでもヘッダーと被らないように */
-    width: 95%;
+        /* レスポンシブデザイン */
+        @media (max-width: 768px) {
+          .search-overlay {
+            top: 100px; /* モバイルでもヘッダーと被らないように */
+            width: calc(100% - 80px); /* 現在地ボタンのスペースを確保 */
+            left: 10px;
+            transform: none;
+            max-width: none;
+          }
+
+  .search-bar {
+    padding: 14px 18px;
+    font-size: 18px; /* スマホで見やすいサイズに */
+    border-radius: 30px;
   }
 
-  .location-button-overlay {
-    top: 70px; /* モバイルでもヘッダーと被らないように */
-    right: 10px;
-  }
+          .location-button-overlay {
+            top: 100px; /* モバイルでもヘッダーと被らないように */
+            right: 10px;
+          }
 
   .location-btn {
-    width: 44px;
-    height: 44px;
+    width: 56px; /* スマホでタップしやすいサイズに */
+    height: 56px;
+  }
+
+  .location-btn svg {
+    width: 24px;
+    height: 24px;
   }
 
   .spots-overlay {
     bottom: 10px;
+    left: 10px;
     right: 10px;
-    width: 280px; /* モバイルでは少し小さく */
+    width: auto; /* 全幅に */
+    max-width: none;
   }
 
   .spots-header {
-    padding: 6px 12px; /* モバイルでも上下の余白を狭く */
+    padding: 12px 16px; /* スマホで見やすい余白に */
   }
 
   .spots-header h3 {
+    font-size: 18px; /* スマホで見やすいサイズに */
+    font-weight: 600;
+  }
+
+  .toggle-btn {
+    padding: 8px 16px;
     font-size: 14px;
   }
 
   .spot-item {
-    padding: 6px 12px; /* モバイルでも上下の余白を狭く */
-    font-size: 13px;
+    padding: 12px 16px; /* スマホでタップしやすい余白に */
+    font-size: 16px; /* スマホで見やすいサイズに */
+  }
+
+  .spot-name {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+
+  .benefit-tag {
+    font-size: 12px;
+    padding: 4px 8px;
+    margin: 2px;
   }
 }
 

@@ -232,18 +232,25 @@
             <div class="category-header">
               <img :src="tagIcon" alt="tag" class="category-header-icon" />
               <h3 class="category-title">マイおみくじ</h3>
-              <span class="image-count">({{ omikujiImagesFiltered.length }}枚)</span>
+              <span class="image-count">({{ omikujiImagesCount }}枚)</span>
             </div>
             <div v-if="omikujiImagesFiltered.length === 0" class="empty-category">
               <p>まだおみくじの写真がありません</p>
             </div>
-            <div v-else class="images-scroll">
+            <div v-else ref="omikujiScrollRef" class="images-scroll" @scroll="handleOmikujiScroll">
               <div
                 v-for="image in omikujiImagesFiltered"
-                :key="image.id"
+                :key="image._displayKey || image.id"
                 class="image-card-scroll"
               >
-                <img :src="image.url" :alt="image.spot_name" class="scroll-thumbnail" @click="openImageModal(image)" />
+                <img
+                  :src="image.url"
+                  :alt="image.spot_name"
+                  class="scroll-thumbnail"
+                  @click="openImageModal(image)"
+                  @error="handleImageError"
+                  loading="lazy"
+                />
                 <p class="image-spot-name" @click="openSpotDetail(image.spot_id)">{{ image.spot_name }}</p>
               </div>
             </div>
@@ -254,26 +261,28 @@
             <div class="category-header">
               <img :src="tagIcon" alt="tag" class="category-header-icon" />
               <h3 class="category-title">マイ御朱印</h3>
-              <span class="image-count">({{ goshuinImagesFiltered.length }}枚)</span>
+              <span class="image-count">({{ goshuinImagesCount }}枚)</span>
             </div>
             <div v-if="goshuinImagesFiltered.length === 0" class="empty-category">
               <p>まだ御朱印の写真がありません</p>
             </div>
-            <div v-else class="images-scroll">
+            <div v-else ref="goshuinScrollRef" class="images-scroll" @scroll="handleGoshuinScroll">
               <div
                 v-for="image in goshuinImagesFiltered"
-                :key="image.id"
+                :key="image._displayKey || image.id"
                 class="image-card-scroll"
               >
-                <img :src="image.url" :alt="image.spot_name" class="scroll-thumbnail" @click="openImageModal(image)" />
+                <img
+                  :src="image.url"
+                  :alt="image.spot_name"
+                  class="scroll-thumbnail"
+                  @click="openImageModal(image)"
+                  @error="handleImageError"
+                  loading="lazy"
+                />
                 <p class="image-spot-name" @click="openSpotDetail(image.spot_id)">{{ image.spot_name }}</p>
               </div>
             </div>
-          </div>
-          <div v-if="pagination.images.hasMore" class="load-more-container">
-            <button @click="loadMoreData" class="load-more-btn" :disabled="loading">
-              {{ loading ? '読み込み中...' : 'もっと見る' }}
-            </button>
           </div>
         </div>
       </div>
@@ -386,11 +395,44 @@ const tabs = [
 
 // Computed: Filter images by type
 const omikujiImagesFiltered = computed(() => {
-  return images.value.filter(img => img.type === 'omikuji');
+  const filtered = images.value.filter(img => img.type === 'omikuji');
+  if (filtered.length === 0) {
+    return [];
+  }
+  // 無限ループのため、画像を5セット複製（十分な数でループ感を出す）
+  const duplicated = [];
+  for (let i = 0; i < 5; i++) {
+    duplicated.push(...filtered.map((img, idx) => ({
+      ...img,
+      _displayKey: `${img.id}_${i}_${idx}`
+    })));
+  }
+  return duplicated;
 });
 
 const goshuinImagesFiltered = computed(() => {
-  return images.value.filter(img => img.type === 'goshuin');
+  const filtered = images.value.filter(img => img.type === 'goshuin');
+  if (filtered.length === 0) {
+    return [];
+  }
+  // 無限ループのため、画像を5セット複製（十分な数でループ感を出す）
+  const duplicated = [];
+  for (let i = 0; i < 5; i++) {
+    duplicated.push(...filtered.map((img, idx) => ({
+      ...img,
+      _displayKey: `${img.id}_${i}_${idx}`
+    })));
+  }
+  return duplicated;
+});
+
+// 実際の画像枚数（複製前の枚数）
+const omikujiImagesCount = computed(() => {
+  return images.value.filter(img => img.type === 'omikuji').length;
+});
+
+const goshuinImagesCount = computed(() => {
+  return images.value.filter(img => img.type === 'goshuin').length;
 });
 
 // 現在表示中の画像のインデックス
@@ -512,33 +554,26 @@ const loadReviews = async (append = false) => {
   }
 };
 
-const loadImages = async (append = false) => {
-  if (!append) {
-    loading.value = true;
-    pagination.value.images.page = 1;
-  }
+const loadImages = async () => {
+  loading.value = true;
 
   try {
+    // すべての画像を取得（大きなper_pageを指定）
     const response = await axios.get('/api/user/images', {
       params: {
-        page: pagination.value.images.page,
-        per_page: 20
+        page: 1,
+        per_page: 1000 // 十分大きな数値を指定して全件取得
       }
     });
 
-    if (append) {
-      images.value = [...images.value, ...response.data.data];
-    } else {
-      images.value = response.data.data;
-    }
+    images.value = response.data.data;
 
-    pagination.value.images.hasMore = response.data.current_page < response.data.last_page;
+    // ページネーション情報を更新（hasMoreは常にfalseにする）
+    pagination.value.images.hasMore = false;
   } catch (error) {
     console.error('写真の読み込みに失敗しました:', error);
   } finally {
-    if (!append) {
-      loading.value = false;
-    }
+    loading.value = false;
   }
 };
 
@@ -610,9 +645,7 @@ const loadMoreData = () => {
     case 'reviews':
       loadReviews(true);
       break;
-    case 'images':
-      loadImages(true);
-      break;
+    // imagesタブでは「もっと見る」ボタンは表示しないため、ケースを削除
   }
 };
 
@@ -631,6 +664,65 @@ const openSpotDetail = (spotId) => {
 
 const openSpotDetailWithReview = (spotId) => {
   router.push({ path: '/', query: { spotId, tab: 'reviews' } });
+};
+
+const handleImageError = (event) => {
+  // 画像の読み込みに失敗した場合の処理
+  console.error('Image load error:', event.target.src);
+  // エラー画像を表示するか、デフォルト画像を設定
+  event.target.style.display = 'none';
+};
+
+// スクロールコンテナのref
+const omikujiScrollRef = ref(null);
+const goshuinScrollRef = ref(null);
+
+// スクロール位置をリセット中かどうかのフラグ
+const isResettingOmikuji = ref(false);
+const isResettingGoshuin = ref(false);
+
+// おみくじスクロールハンドラー（無限ループ）
+const handleOmikujiScroll = () => {
+  if (!omikujiScrollRef.value || isResettingOmikuji.value) return;
+
+  const scrollContainer = omikujiScrollRef.value;
+  const scrollLeft = scrollContainer.scrollLeft;
+  const scrollWidth = scrollContainer.scrollWidth;
+
+  // 1セット目の幅を計算（全体の20%、画像が5セットあるため）
+  const set1Width = scrollWidth / 5;
+
+  // 1セット目の終了位置に達したら、1セット目の開始位置に戻す
+  if (scrollLeft >= set1Width - 5) {
+    isResettingOmikuji.value = true;
+    // 少し遅延を入れてスムーズに戻す
+    requestAnimationFrame(() => {
+      scrollContainer.scrollLeft = scrollLeft - set1Width;
+      isResettingOmikuji.value = false;
+    });
+  }
+};
+
+// 御朱印スクロールハンドラー（無限ループ）
+const handleGoshuinScroll = () => {
+  if (!goshuinScrollRef.value || isResettingGoshuin.value) return;
+
+  const scrollContainer = goshuinScrollRef.value;
+  const scrollLeft = scrollContainer.scrollLeft;
+  const scrollWidth = scrollContainer.scrollWidth;
+
+  // 1セット目の幅を計算（全体の20%、画像が5セットあるため）
+  const set1Width = scrollWidth / 5;
+
+  // 1セット目の終了位置に達したら、1セット目の開始位置に戻す
+  if (scrollLeft >= set1Width - 5) {
+    isResettingGoshuin.value = true;
+    // 少し遅延を入れてスムーズに戻す
+    requestAnimationFrame(() => {
+      scrollContainer.scrollLeft = scrollLeft - set1Width;
+      isResettingGoshuin.value = false;
+    });
+  }
 };
 
 // Watchers
@@ -825,6 +917,7 @@ onMounted(() => {
   transition: all 0.3s ease;
   font-size: 15px;
   font-weight: 500;
+  white-space: nowrap; /* 改行を防ぐ */
   color: #666;
   display: flex;
   align-items: center;
@@ -1198,6 +1291,8 @@ onMounted(() => {
   padding: 8px 4px;
   scrollbar-width: thin;
   scrollbar-color: #e0e0e0 transparent;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch; /* iOSでのスムーズスクロール */
 }
 
 .images-scroll::-webkit-scrollbar {
@@ -1421,35 +1516,106 @@ onMounted(() => {
 /* レスポンシブ */
 @media (max-width: 768px) {
   .page-content {
-    padding: 24px 20px; /* モバイルでは適度に */
+    padding: 20px 16px; /* スマホで見やすい余白に */
   }
+
+  .header h1 {
+    font-size: 28px; /* スマホで見やすいサイズに */
+    font-weight: 600;
+  }
+
+  .welcome-message {
+    font-size: 16px; /* スマホで見やすいサイズに */
+  }
+
   .stats-section {
     grid-template-columns: repeat(2, 1fr);
     gap: 12px;
   }
 
   .stat-card {
-    padding: 16px;
+    padding: 20px 16px; /* スマホでタップしやすい余白に */
   }
 
   .stat-icon {
-    width: 48px;
-    height: 48px;
+    width: 56px; /* スマホで見やすいサイズに */
+    height: 56px;
   }
 
   .stat-icon img {
-    width: 24px;
-    height: 24px;
+    width: 28px; /* スマホで見やすいサイズに */
+    height: 28px;
+  }
+
+  .stat-label {
+    font-size: 14px; /* スマホで見やすいサイズに */
+    white-space: nowrap; /* 改行を防ぐ */
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .stat-value {
+    font-size: 24px; /* スマホで見やすいサイズに */
+    font-weight: 700;
+  }
+
+  .tab-navigation {
+    gap: 8px;
+    margin-bottom: 24px;
+    overflow-x: auto; /* 横スクロールを有効化 */
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch; /* iOSでスムーズなスクロール */
+    scrollbar-width: thin;
+    padding: 4px;
+  }
+
+  .tab-navigation::-webkit-scrollbar {
+    height: 4px;
+  }
+
+  .tab-navigation::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .tab-navigation::-webkit-scrollbar-thumb {
+    background: #e0e0e0;
+    border-radius: 2px;
   }
 
   .tab-btn {
-    min-width: 100px;
-    padding: 10px 16px;
-    font-size: 14px;
+    min-width: fit-content; /* 内容に合わせた最小幅 */
+    padding: 12px 16px; /* スマホでタップしやすいサイズに */
+    font-size: 15px; /* スマホで見やすいサイズに */
+    flex-shrink: 0; /* 縮小しない */
+    white-space: nowrap; /* 改行を防ぐ */
+  }
+
+  .tab-icon img {
+    width: 20px; /* スマホで見やすいサイズに */
+    height: 20px;
+  }
+
+  .item-card {
+    padding: 16px; /* スマホでタップしやすい余白に */
+  }
+
+  .item-name {
+    font-size: 18px; /* スマホで見やすいサイズに */
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+
+  .item-address {
+    font-size: 14px; /* スマホで見やすいサイズに */
+  }
+
+  .benefit-tag {
+    font-size: 12px; /* スマホで見やすいサイズに */
+    padding: 4px 10px;
   }
 
   .image-category {
-    padding: 16px;
+    padding: 20px 16px; /* スマホで見やすい余白に */
   }
 
   .category-header {
@@ -1459,43 +1625,49 @@ onMounted(() => {
 
   .category-header-icon {
     width: auto;
-    height: 24px;
-    max-width: 36px;
+    height: 28px; /* スマホで見やすいサイズに */
+    max-width: 40px;
   }
 
   .category-title {
-    font-size: 18px;
+    font-size: 20px; /* スマホで見やすいサイズに */
+    font-weight: 600;
   }
 
   .image-count {
-    font-size: 13px;
+    font-size: 14px; /* スマホで見やすいサイズに */
   }
 
   .empty-category {
-    padding: 32px 16px;
-    font-size: 14px;
+    padding: 40px 16px; /* スマホで見やすい余白に */
+    font-size: 15px; /* スマホで見やすいサイズに */
   }
 
   .image-card-scroll {
-    width: 160px;
+    width: 180px; /* スマホで見やすいサイズに */
   }
 
   .scroll-thumbnail {
-    height: 160px;
+    height: 180px; /* スマホで見やすいサイズに */
+  }
+
+  .image-spot-name {
+    font-size: 14px; /* スマホで見やすいサイズに */
+    padding: 8px;
   }
 
   .image-modal-close {
     top: 10px;
     right: 10px;
-    width: 40px;
-    height: 40px;
-    padding: 8px;
+    width: 48px; /* スマホでタップしやすいサイズに */
+    height: 48px;
+    padding: 12px;
   }
 
   .image-nav-btn {
-    width: 48px;
-    height: 48px;
-    padding: 12px;
+    width: 56px; /* スマホでタップしやすいサイズに */
+    height: 56px;
+    padding: 16px;
   }
 
   .prev-btn {
@@ -1508,12 +1680,12 @@ onMounted(() => {
 
   .modal-image-container {
     max-width: 95vw;
-    max-height: 70vh;
+    max-height: 75vh; /* スマホで見やすい高さに */
   }
 
   .modal-image {
     max-width: 95vw;
-    max-height: 70vh;
+    max-height: 75vh; /* スマホで見やすい高さに */
   }
 
   .image-overlay-info {
@@ -1521,12 +1693,18 @@ onMounted(() => {
   }
 
   .modal-spot-name-overlay {
-    font-size: 16px;
+    font-size: 18px; /* スマホで見やすいサイズに */
+    font-weight: 600;
   }
 
   .images-grid {
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     gap: 12px;
+  }
+
+  .load-more-btn {
+    padding: 14px 32px; /* スマホでタップしやすいサイズに */
+    font-size: 16px; /* スマホで見やすいサイズに */
   }
 }
 
