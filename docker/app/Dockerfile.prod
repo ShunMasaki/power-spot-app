@@ -9,9 +9,11 @@ RUN apt-get update && apt-get install -y \
     libxml2-dev \
     zip \
     unzip \
-    nodejs \
-    npm \
     && rm -rf /var/lib/apt/lists/*
+
+# Node.js 20.xをインストール
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs
 
 # PHP拡張機能をインストール
 RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd
@@ -29,8 +31,11 @@ RUN rm -f /var/www/html/.env /var/www/html/.env.example
 # Composer依存関係をインストール（本番用）
 RUN composer install --optimize-autoloader --no-dev
 
-# Node.js依存関係をインストールしてビルド
-RUN npm install && npm run build
+# Node.js依存関係をインストール
+RUN npm install --verbose || (echo "npm install failed" && exit 1)
+
+# ビルド実行（メモリ制限を緩和）
+RUN NODE_OPTIONS="--max-old-space-size=4096" npm run build || (echo "npm run build failed" && exit 1)
 
 # 権限設定
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache

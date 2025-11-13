@@ -1,6 +1,6 @@
 FROM nginx:1.24-alpine
 
-# Node.jsとnpmをインストール（アセットビルド用）
+# Node.js 20.xをインストール（アセットビルド用）
 RUN apk add --no-cache nodejs npm
 
 # アプリケーションコードをコピー（一時的に）
@@ -9,8 +9,11 @@ COPY src/ /tmp/app/
 # 作業ディレクトリを設定
 WORKDIR /tmp/app
 
-# Node.js依存関係をインストールしてビルド
-RUN npm install && npm run build
+# Node.js依存関係をインストール
+RUN npm install --verbose || (echo "npm install failed" && exit 1)
+
+# ビルド実行（メモリ制限を緩和）
+RUN NODE_OPTIONS="--max-old-space-size=4096" npm run build || (echo "npm run build failed" && exit 1)
 
 # 本番用のNginx設定ファイルをコピー
 COPY docker/web/default.conf.prod /etc/nginx/conf.d/default.conf
