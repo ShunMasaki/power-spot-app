@@ -70,4 +70,4 @@ Laravel + Vue3 + Docker + AWS Cognito で構築しています。
 
 ### インフラ構成図
 
-![インフラ構成図](powerspot-app-structure.png)
+![インフラ構成図](powerspot_app_structure.png)
