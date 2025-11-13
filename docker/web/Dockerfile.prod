@@ -9,6 +9,32 @@ COPY src/ /tmp/app/
 # 作業ディレクトリを設定
 WORKDIR /tmp/app
 
+# aws-exports.jsを生成（ビルド時に必要）
+RUN cat > resources/js/aws-exports.js << 'EOF'
+// 現在のオリジンを取得（本番環境ではALBのURL、開発環境ではlocalhost:8080）
+const currentOrigin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8080'
+
+const awsconfig = {
+    Auth: {
+      Cognito: {
+        userPoolId: 'us-east-1_fbJdT2Z0S',
+        userPoolClientId: '2lev0bbr4un1so7aipuphl0o9o',
+        loginWith: {
+          oauth: {
+            domain: 'us-east-1fbjdt2z0s.auth.us-east-1.amazoncognito.com',
+            scopes: ['email', 'openid'],
+            redirectSignIn: [currentOrigin],
+            redirectSignOut: [currentOrigin],
+            responseType: 'code'
+          }
+        }
+      }
+    }
+  }
+
+  export default awsconfig
+EOF
+
 # Node.js依存関係をインストール
 RUN npm install --verbose || (echo "npm install failed" && exit 1)
 
